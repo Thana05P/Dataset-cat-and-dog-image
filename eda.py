@@ -17,7 +17,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 # ปิดการแสดงผล Warning บน Terminal
 warnings.filterwarnings("ignore", category=UserWarning)
 
-DATA_DIR = r"C:\Users\ohmde\.cache\kagglehub\datasets\bhavikjikadara\dog-and-cat-classification-dataset\versions\1\PetImages"
+DATA_DIR = r"C:\Users\ohmde\AppData\Local\Programs\Microsoft VS Code"
 FIGURES_DIR = "reports/figures"
 SUMMARY_FILE = "reports/eda_summary.md"
 
@@ -117,9 +117,15 @@ def generate_plots(df):
     valid_df = df[~df["is_corrupted"]]
 
     # 1. Class Distribution
-    plt.figure(figsize=(7, 4))
+    # แนะนำให้ปรับความกว้างเพิ่มขึ้นเล็กน้อย เช่น (10, 5) หรือ (12, 6)
+    plt.figure(figsize=(10, 5)) 
     ax = sns.countplot(data=df, x="class", hue="class", palette="viridis")
     plt.title("1. Class Distribution (Class Imbalance Check)")
+
+    # === เพิ่มบรรทัดนี้เพื่อหมุนตัวหนังสือแกน X ===
+    plt.xticks(rotation=45, ha='right')
+    # ======================================
+
     for p in ax.patches:
         ax.annotate(
             f"{int(p.get_height())}",
