@@ -1,15 +1,22 @@
 import hashlib
 import os
+import warnings
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from PIL import Image
+from PIL import Image, ImageFile
 
 # ==========================================
-# CONFIGURATION
+# CONFIGURATION & WARNING SETTINGS
 # ==========================================
+# อนุญาตให้โหลดไฟล์ภาพที่ไม่สมบูรณ์ (Fix: Truncated File Warning)
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+# ปิดการแสดงผล Warning บน Terminal
+warnings.filterwarnings("ignore", category=UserWarning)
+
 DATA_DIR = r"C:\Users\ohmde\.cache\kagglehub\datasets\bhavikjikadara\dog-and-cat-classification-dataset\versions\1\PetImages"
 FIGURES_DIR = "reports/figures"
 SUMMARY_FILE = "reports/eda_summary.md"
@@ -52,11 +59,12 @@ def extract_and_clean_metadata(data_dir):
             is_corrupted = False
             w, h, channels = None, None, None
 
-            # Check Corrupted File
+            # Check Corrupted File & Extract Info
             try:
                 with Image.open(file_path) as img:
                     img.verify()
                 with Image.open(file_path) as img:
+                    img.load()  # บังคับอ่านข้อมูลภาพเพื่อดักจับไฟล์ที่เสียจริง
                     w, h = img.size
                     channels = len(img.getbands())
             except Exception:
