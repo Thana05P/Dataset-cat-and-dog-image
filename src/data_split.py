@@ -2,12 +2,10 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-# 1. หาตำแหน่งโฟลเดอร์โปรเจกต์หลัก (ดึงตำแหน่งอ้างอิงจากไฟล์นี้)
-current_project_dir = os.path.dirname(os.path.abspath(__file__))
+# 1. หาตำแหน่งโฟลเดอร์โปรเจกต์หลัก (ถอยออกจาก src/ มา 1 ระดับ)
+current_project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-# 2. ชี้ไปที่โฟลเดอร์ที่เพื่อนทำ Preprocessing เอาไว้
-# *** สำคัญ: ต้องถามเพื่อนว่าโค้ดของเขาเซฟรูปลงในโฟลเดอร์ชื่ออะไร ***
-# (สมมติว่าเพื่อนจัดเก็บไว้ในโฟลเดอร์ 'data/processed' ภายในโฟลเดอร์โปรเจกต์)
+# 2. ชี้ไปที่โฟลเดอร์ data/processed ที่อยู่ด้านนอก src/
 processed_dir = os.path.join(current_project_dir, 'data', 'processed')
 
 print(f"กำลังค้นหารูปภาพที่ผ่านการทำ Preprocessing จาก:\n{processed_dir}")
@@ -15,10 +13,10 @@ print(f"กำลังค้นหารูปภาพที่ผ่านก
 filepaths = []
 labels = []
 
-# เช็คว่ามีโฟลเดอร์ที่เพื่อนทำไว้หรือยัง
+# เช็คว่ามีโฟลเดอร์ processed หรือยัง
 if not os.path.exists(processed_dir):
     print(f"\n❌ ไม่พบโฟลเดอร์: {processed_dir}")
-    print("กรุณาตรวจสอบว่าได้รันไฟล์ preprocessing.py ของเพื่อนก่อน และตั้งชื่อโฟลเดอร์ตรงกัน")
+    print("กรุณาตรวจสอบว่าได้รันไฟล์ preprocessing.py แล้ว และมีโฟลเดอร์ data/processed อยู่ในโปรเจกต์")
 else:
     # 3. ลูปอ่านโฟลเดอร์ย่อย (เช่น cats, dogs) 
     for class_name in os.listdir(processed_dir):
@@ -30,9 +28,8 @@ else:
                     # สร้าง Full Path สำหรับตัวแปลผล
                     full_path = os.path.join(class_dir, img_name)
                     
-                    # *** ทีเด็ด: แปลงเป็น Relative Path ป้องกัน Error เวลารันบนคอมคนอื่น ***
+                    # แปลงเป็น Relative Path ป้องกัน Error เวลารันบนคอมคนอื่น
                     rel_path = os.path.relpath(full_path, current_project_dir)
-                    # rel_path จะออกมาหน้าตาแบบนี้: data\processed\cats\cat_01.jpg
                     
                     filepaths.append(rel_path)
                     labels.append(class_name)
@@ -45,7 +42,7 @@ else:
     print(f"รวบรวมข้อมูลสำเร็จ! พบรูปภาพทั้งหมด: {len(df)} รูป\n")
 
     if len(df) == 0:
-        print("❌ ไม่พบรูปภาพในโฟลเดอร์ กรุณาตรวจสอบโค้ด Preprocessing ของเพื่อน")
+        print("❌ ไม่พบรูปภาพในโฟลเดอร์ กรุณาตรวจสอบโค้ด Preprocessing อีกครั้ง")
     else:
         X = df['filepath']
         y = df['label']
@@ -72,7 +69,7 @@ else:
 
         manifest_df = pd.concat([train_df, val_df, test_df])
 
-        # 6. บันทึกไฟล์ Manifest ลงโฟลเดอร์โปรเจกต์
+        # 6. บันทึกไฟล์ Manifest ลงที่ Root Directory ของโปรเจกต์ (นอกโฟลเดอร์ src)
         manifest_path = os.path.join(current_project_dir, 'dataset_manifest.csv')
         
         # เซฟเป็น CSV (ใช้เครื่องหมายทับ / แบบมาตรฐานสากล แทน \ ของ Windows)
