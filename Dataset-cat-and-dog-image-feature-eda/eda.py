@@ -6,16 +6,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import hashlib
 from glob import glob
-from PIL import Image
 
 # ==========================================
 # 1. การจัดการ Path และโฟลเดอร์ผลลัพธ์
 # ==========================================
-# ดึง Path ทั้งจาก Terminal (getcwd) และจากตำแหน่งที่ไฟล์ eda.py ตั้งอยู่จริง (script_dir)
 current_path = os.getcwd()
 script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else current_path
 
-# รายการ Path ที่เป็นไปได้ทั้งหมด (รองรับกรณีโฟลเดอร์ซ้อนกัน)
 possible_paths = [
     os.path.join(current_path, "Dataset-cat-and-dog-image", "Dataset-cat-and-dog-image", "train"),
     os.path.join(script_dir, "Dataset-cat-and-dog-image", "Dataset-cat-and-dog-image", "train"),
@@ -35,9 +32,11 @@ for p in possible_paths:
 
 REPORTS_DIR = os.path.join(current_path, "reports")
 FIGURES_DIR = os.path.join(REPORTS_DIR, "figures")
+OUTLIERS_DIR = os.path.join(FIGURES_DIR, "outliers")
 SUMMARY_FILE = os.path.join(REPORTS_DIR, "eda_summary.md")
 
 os.makedirs(FIGURES_DIR, exist_ok=True)
+os.makedirs(OUTLIERS_DIR, exist_ok=True)
 
 print(f"Current Working Directory: {current_path}")
 if DATASET_DIR:
@@ -47,7 +46,7 @@ else:
 print(f"Reports will be saved to: {REPORTS_DIR}\n")
 
 # ==========================================
-# 2. ฟังก์ชันตรวจสอบเชิงปริมาณ (Quantitative)
+# 2. ฟังก์ชันตรวจสอบเชิงปริมาณ (Quantitative & Performance Optimized)
 # ==========================================
 def calculate_md5(image_path):
     """หาค่า Hash ตรวจจับรูปซ้ำ"""
@@ -60,10 +59,9 @@ def calculate_md5(image_path):
     return file_hash.hexdigest()
 
 def extract_image_metadata(dataset_dir):
-    """ดึง Metadata และตรวจสอบคุณภาพรูปภาพ"""
+    """ดึง Metadata, Brightness, Contrast, Blur Score และตรวจไฟล์เสีย (Optimized Read)"""
     data = []
     
-    # ป้องกัน TypeError กรณี dataset_dir เป็น None หรือหา Path ไม่พบ
     if not dataset_dir or not os.path.exists(dataset_dir):
         print(f"Error: ไม่พบโฟลเดอร์ {dataset_dir}")
         return pd.DataFrame()
@@ -79,23 +77,29 @@ def extract_image_metadata(dataset_dir):
             file_size_kb = os.path.getsize(img_path) / 1024
             
             try:
-                # ตรวจสอบไฟล์เสีย
-                img_pil = Image.open(img_path)
-                img_pil.verify()
-                
-                # อ่านด้วย OpenCV
+                # อ่านไฟล์ด้วย OpenCV โดยตรง (ลด Overhead จากการเปิดด้วย PIL ซ้ำ)
                 img = cv2.imread(img_path)
                 if img is None:
-                    raise ValueError("Cannot read image")
+                    raise ValueError("Cannot read image or file is corrupted")
                 
                 h, w, c = img.shape if len(img.shape) == 3 else (img.shape[0], img.shape[1], 1)
                 aspect_ratio = w / h
-                is_grayscale = (c == 1) or (np.array_equal(img[:,:,0], img[:,:,1]) and np.array_equal(img[:,:,1], img[:,:,2]))
-                img_hash = calculate_md5(img_path)
                 
-                # ตรวจสอบความเบลอ (Variance of Laplacian)
-                gray_for_blur = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if c == 3 else img
-                blur_score = cv2.Laplacian(gray_for_blur, cv2.CV_64F).var()
+                # แปลงเป็น Gray เพื่อคำนวณสถิติ
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if c == 3 else img
+                
+                # เช็ก Grayscale แบบ Fast Downsampling
+                small_img = img[::10, ::10] if c == 3 else img
+                is_grayscale = (c == 1) or (
+                    np.array_equal(small_img[:,:,0], small_img[:,:,1]) and 
+                    np.array_equal(small_img[:,:,1], small_img[:,:,2])
+                )
+                
+                # คำนวณ Brightness, Contrast และ Blur Score
+                brightness = float(np.mean(gray))
+                contrast = float(np.std(gray))
+                blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+                img_hash = calculate_md5(img_path)
                 
                 data.append({
                     "path": img_path,
@@ -106,21 +110,60 @@ def extract_image_metadata(dataset_dir):
                     "aspect_ratio": aspect_ratio,
                     "size_kb": file_size_kb,
                     "is_grayscale": is_grayscale,
-                    "hash": img_hash,
+                    "brightness": brightness,
+                    "contrast": contrast,
                     "blur_score": blur_score,
+                    "hash": img_hash,
                     "corrupted": False
                 })
                 
             except Exception as e:
                 data.append({
-                    "path": img_path, "class": cls, "corrupted": True, "error": str(e)
+                    "path": img_path, 
+                    "class": cls, 
+                    "corrupted": True, 
+                    "error": str(e)
                 })
                 
     return pd.DataFrame(data)
 
 # ==========================================
-# 3. ฟังก์ชันสุ่มตรวจเชิงคุณภาพ (Qualitative)
+# 3. ฟังก์ชัน Audit และสุ่มตรวจเชิงคุณภาพ (Qualitative)
 # ==========================================
+def save_outlier_samples(df, top_n=3):
+    """ตรวจจับและเซฟรูป Outliers (เบลอที่สุด, มืดที่สุด, สว่างที่สุด) ออกมาตรวจแบบ Visual Audit"""
+    df_valid = df[df["corrupted"] == False]
+    if df_valid.empty:
+        return
+
+    outliers = {
+        "Most_Blurry": df_valid.sort_values(by="blur_score").head(top_n),
+        "Darkest": df_valid.sort_values(by="brightness").head(top_n),
+        "Brightest": df_valid.sort_values(by="brightness", ascending=False).head(top_n)
+    }
+
+    for category_name, outlier_df in outliers.items():
+        fig, axes = plt.subplots(1, len(outlier_df), figsize=(4 * len(outlier_df), 4))
+        fig.suptitle(f"Outlier Audit: {category_name.replace('_', ' ')}", fontsize=14)
+        
+        if len(outlier_df) == 1:
+            axes = [axes]
+
+        for i, (_, row) in enumerate(outlier_df.iterrows()):
+            img = cv2.imread(row["path"])
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            axes[i].imshow(img_rgb)
+            axes[i].set_title(
+                f"Class: {row['class']}\n"
+                f"Blur: {row['blur_score']:.1f} | Bright: {row['brightness']:.1f}"
+            )
+            axes[i].axis('off')
+
+        plt.tight_layout()
+        outlier_fig_path = os.path.join(OUTLIERS_DIR, f"outlier_{category_name.lower()}.png")
+        plt.savefig(outlier_fig_path, dpi=200, bbox_inches='tight')
+        plt.close()
+
 def plot_and_save_samples(df, n_samples=3):
     """สุ่มตัวอย่างภาพและบันทึกกราฟ Histogram แยกราย Class"""
     classes = df["class"].unique()
@@ -142,12 +185,12 @@ def plot_and_save_samples(df, n_samples=3):
             img = cv2.imread(row["path"])
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
-            # ช่องซ้าย: รูปภาพ + ค่า Blur
             axes[i, 0].imshow(img_rgb)
-            axes[i, 0].set_title(f"Blur Score: {row['blur_score']:.2f}")
+            axes[i, 0].set_title(
+                f"Blur: {row['blur_score']:.1f} | Brightness: {row['brightness']:.1f}"
+            )
             axes[i, 0].axis('off')
             
-            # ช่องขวา: Histogram สี
             colors = ('r', 'g', 'b')
             for j, color in enumerate(colors):
                 hist = cv2.calcHist([img_rgb], [j], None, [256], [0, 256])
@@ -178,31 +221,32 @@ def generate_summary_report(df):
 ### สรุปจำนวนข้อมูลแยกตาม Class (Class Distribution)
 {class_counts}
 
-### สถิติขนาดภาพและความสว่าง
+### สถิติขนาดภาพ ความสว่าง และคุณภาพเชิงลึก
 | ตัวชี้วัด | ค่าเฉลี่ย (Mean) | ค่าน้อยสุด (Min) | ค่ามากสุด (Max) |
 | :--- | :--- | :--- | :--- |
 | **Width (px)** | {df_valid['width'].mean():.1f} | {df_valid['width'].min()} | {df_valid['width'].max()} |
 | **Height (px)** | {df_valid['height'].mean():.1f} | {df_valid['height'].min()} | {df_valid['height'].max()} |
 | **Aspect Ratio (W/H)** | {df_valid['aspect_ratio'].mean():.2f} | {df_valid['aspect_ratio'].min():.2f} | {df_valid['aspect_ratio'].max():.2f} |
 | **File Size (KB)** | {df_valid['size_kb'].mean():.1f} | {df_valid['size_kb'].min():.1f} | {df_valid['size_kb'].max():.1f} |
+| **Brightness (0-255)** | {df_valid['brightness'].mean():.1f} | {df_valid['brightness'].min():.1f} | {df_valid['brightness'].max():.1f} |
+| **Contrast (Std Dev)** | {df_valid['contrast'].mean():.1f} | {df_valid['contrast'].min():.1f} | {df_valid['contrast'].max():.1f} |
 | **Blur Score (Laplacian)** | {df_valid['blur_score'].mean():.1f} | {df_valid['blur_score'].min():.1f} | {df_valid['blur_score'].max():.1f} |
 
 ---
 
-## 2. ข้อค้นพบเชิงคุณภาพ (Qualitative Observations)
+## 2. ข้อค้นพบเชิงคุณภาพและภาพแปลกปลอม (Qualitative & Outlier Observations)
 * **ตัวอย่างรูปภาพและ Histogram:** บันทึกไว้ที่โฟลเดอร์ `reports/figures/`
-* **การตรวจสอบด้วยสายตา (Visual Check):**
-  * ควรเปิดดูรูปภาพใน `sample_class_*.png` เพื่อตรวจว่ามีลายน้ำ (Watermark), ป้ายข้อความ, มุมกล้องที่กลับหัว หรือภาพเบลอจนมองไม่เห็นวัตถุหรือไม่
+* **ภาพ Outliers ที่ต้องตรวจสอบ (Visual Audit):** บันทึกรูปภาพกลุ่มเสี่ยง (เบลอมาก, มืดจัด, สว่างจัด) ไว้ที่ `reports/figures/outliers/`
 
 ---
 
 ## 3. สรุปผลกระทบต่อโมเดลและแนวทางแก้ไข (Insights & Actionable Plan)
 | ปัญหาที่อาจพบ | ผลกระทบต่อโมเดล (Impact) | แนวทางแก้ไขก่อนเทรน (Action Plan) |
 | :--- | :--- | :--- |
-| **Class Imbalance** | โมเดลจะ Bias ไปทางคลาสที่มีจำนวนเยอะ | ใช้ Weighted Loss, Data Augmentation |
-| **Aspect Ratio ต่างกันมาก** | หาก Resize ดื้อๆ ภาพจะยืดหดจนเสียรูปทรง | ใช้ Padding (Letterbox) ก่อน Resize หรือทำ Random Cropping |
-| **รูปซ้ำ (Duplicate Hashes)** | เกิด Data Leakage หากรูปซ้ำหลุดไปที่ Train และ Test | ทำ Data Deduplication โดยลบไฟล์ที่มี Hash ซ้ำออก |
-| **ภาพเบลอ / นอยส์เยอะ** | Feature Extractor สับสนกับขอบภาพ | กำหนด Threshold ค่า Blur Score เพื่อคัดกรองภาพก่อนเทรน |
+| **Class Imbalance** | โมเดลจะ Bias ไปทางคลาสที่มีจำนวนเยอะ | ใช้ Weighted Loss หรือ Class-balanced Augmentation |
+| **Aspect Ratio ต่างกันมาก** | หาก Resize ดื้อๆ ภาพจะยืดหดจนเสียรูปทรง | ใช้ Letterbox Padding ก่อน Resize หรือใช้ Random Crop |
+| **รูปซ้ำ (Duplicate Hashes)** | เกิด Data Leakage หากรูปซ้ำหลุดไปที่ Train และ Test | ทำ Deduplication ลบไฟล์ที่มี Hash ซ้ำออก |
+| **ภาพเบลอ / มืดจัด / สว่างจัด** | Feature Extractor สับสน และเรียนรู้ Noise | กรองภาพออกด้วย Threshold (Blur Score, Brightness) |
 """
     with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
         f.write(report_md)
@@ -221,23 +265,32 @@ if __name__ == "__main__":
         if not df.empty:
             df_valid = df[df["corrupted"] == False]
             
-            # 1. วาดกราฟเชิงปริมาณ
-            plt.figure(figsize=(14, 10))
-            plt.subplot(2, 2, 1)
+            # 1. วาดกราฟสรุปเชิงปริมาณ (ขยายเป็น 6 กราฟ 2x3)
+            plt.figure(figsize=(16, 10))
+            
+            plt.subplot(2, 3, 1)
             sns.countplot(data=df_valid, x="class")
             plt.title("Class Distribution")
             
-            plt.subplot(2, 2, 2)
+            plt.subplot(2, 3, 2)
             sns.scatterplot(data=df_valid, x="width", y="height", hue="class", alpha=0.5)
             plt.title("Dimensions (Width vs Height)")
             
-            plt.subplot(2, 2, 3)
+            plt.subplot(2, 3, 3)
             sns.histplot(data=df_valid, x="aspect_ratio", bins=30, kde=True)
             plt.title("Aspect Ratio Distribution")
             
-            plt.subplot(2, 2, 4)
+            plt.subplot(2, 3, 4)
             sns.histplot(data=df_valid, x="size_kb", bins=30, kde=True)
             plt.title("File Size Distribution (KB)")
+            
+            plt.subplot(2, 3, 5)
+            sns.histplot(data=df_valid, x="brightness", bins=30, kde=True, color="orange")
+            plt.title("Brightness Distribution")
+            
+            plt.subplot(2, 3, 6)
+            sns.histplot(data=df_valid, x="blur_score", bins=30, kde=True, color="purple")
+            plt.title("Blur Score Distribution")
             
             plt.tight_layout()
             summary_plot_path = os.path.join(FIGURES_DIR, "01_eda_summary_plots.png")
@@ -248,13 +301,18 @@ if __name__ == "__main__":
             print("🖼️ กำลังสุ่มตรวจคุณภาพรูปภาพและสร้าง Histogram...")
             plot_and_save_samples(df_valid, n_samples=3)
             
-            # 3. สร้าง Markdown Report
+            # 3. คัดกรองและบันทึกรูป Outlier เพื่อการ Audit
+            print("🔍 กำลังค้นหาและบันทึกภาพ Outliers...")
+            save_outlier_samples(df_valid, top_n=3)
+            
+            # 4. สร้าง Markdown Report
             print("📝 กำลังเขียนรายงานสรุปผลลง eda_summary.md...")
             generate_summary_report(df)
             
             print("\n" + "="*40)
             print("🎉 การทำ EDA เสร็จสมบูรณ์แล้ว!")
             print(f"📁 ดูกราฟทั้งหมดได้ที่: {FIGURES_DIR}")
+            print(f"🔍 ดูภาพ Outliers ได้ที่: {OUTLIERS_DIR}")
             print(f"📄 ดูรายงานสรุปผลได้ที่: {SUMMARY_FILE}")
             print("="*40)
         else:
