@@ -1,70 +1,74 @@
 import os
 import sys
-import urllib.request
 from pathlib import Path
-from PIL import Image, ImageFilter, ImageEnhance
+from PIL import Image, ImageEnhance
 import imagehash
 import numpy as np
 import matplotlib.pyplot as plt
 
-# =====================================================================
-# ตั้งค่า Path ปัจจุบันของไฟล์ที่รันอยู่ (เพื่อให้ทำงานในโฟลเดอร์นี้ทันที)
-# =====================================================================
+# ตั้งค่า Path ปัจจุบันของโปรเจกต์
 current_project_dir = Path(os.path.abspath(__file__)).parent
 
-# =====================================================================
-# ระบบดาวน์โหลดไฟล์ data_collection.py มาไว้ในโฟลเดอร์ปัจจุบันอัตโนมัติ
-# =====================================================================
-module_name = "data_collection.py"
-module_path = current_project_dir / module_name
-
-if not module_path.exists():
-    print(f"🔍 ไม่พบไฟล์ {module_name} กำลังดาวน์โหลดจาก GitHub...")
-    github_raw_url = "https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/Dataset-cat-and-dog-image/feature/data-collection/data_collection.py"
-    try:
-        urllib.request.urlretrieve(github_raw_url, module_path)
-        print(f"✅ ดาวน์โหลด {module_name} สำเร็จ!\n")
-    except Exception as e:
-        print(f"❌ ดาวน์โหลดล้มเหลว: {e}")
-        sys.exit(1)
-
-import data_collection 
-# =====================================================================
-
-
-def save_before_after_plot(original_img, processed_img, save_path):
-    """ฟังก์ชันสร้างภาพ Before/After สำหรับนำเสนอ"""
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+def save_step_by_step_plot(original, resized, enhanced, augmented, save_path):
+    """
+    ฟังก์ชันแสดงภาพ Before/After ของทุกขั้นตอน เพื่อยืนยันผลลัพธ์
+    """
+    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
     
-    axes[0].imshow(original_img)
-    axes[0].set_title("Before (Original)")
+    axes[0].imshow(original)
+    axes[0].set_title("1. Original\n(ภาพต้นฉบับ)")
     axes[0].axis('off')
     
-    axes[1].imshow(processed_img)
-    axes[1].set_title("After (Processed + Augmented)")
+    axes[1].imshow(resized)
+    axes[1].set_title("2. Resized (224x224, LANCZOS)\n(ปรับขนาดไม่ให้ภาพแตก)")
     axes[1].axis('off')
+    
+    axes[2].imshow(enhanced)
+    axes[2].set_title("3. Sharpened\n(เพิ่มความคมชัด)")
+    axes[2].axis('off')
+    
+    axes[3].imshow(augmented)
+    axes[3].set_title("4. Augmented\n(Flip/Brightness)")
+    axes[3].axis('off')
     
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
 
-def comprehensive_preprocessing(data_dir):
-    data_path = Path(data_dir)
+def comprehensive_preprocessing():
+    data_path = current_project_dir / 'Dataset-cat-and-dog-image'
     
-    # กำหนดให้โฟลเดอร์จัดเก็บข้อมูลและรายงาน สร้างอยู่ภายใต้ Path ปัจจุบันนี้โดยตรง
+    if not data_path.exists():
+        print(f"❌ ไม่พบโฟลเดอร์ {data_path.name} ในเครื่อง กรุณาตรวจสอบตำแหน่งโฟลเดอร์")
+        sys.exit(1)
+
     output_dir = current_project_dir / 'data' / 'processed'
     report_dir = current_project_dir / 'reports' / 'figures'
     
     report_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     
+    initial_counts = {}
+    cleaned_counts = {}
     removed_corrupt = 0
     removed_duplicates = 0
     hashes = {}          
-    class_counts = {}    
     sample_saved = {'cats': False, 'dogs': False}
 
-    print(f"[Preprocessing] กำลังเริ่ม Clean และ Process รูปภาพในพื้นที่ทำงานปัจจุบัน...\n")
+    print(f"[Preprocessing] กำลังสำรวจและนับจำนวนรูปภาพจากโฟลเดอร์ {data_path.name}...\n")
+    
+    # 1. นับจำนวนไฟล์เริ่มต้นแยกตามคลาส
+    for img_path in data_path.glob("**/*.*"):
+        if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
+            c_name = img_path.parent.name
+            initial_counts[c_name] = initial_counts.get(c_name, 0) + 1
+
+    print("--- จำนวนไฟล์เริ่มต้น (Raw Dataset) ---")
+    for c_name, count in initial_counts.items():
+        print(f"- คลาส '{c_name}': {count} ไฟล์")
+    print("-" * 40)
+
+    print(f"[Preprocessing] เริ่มกระบวนการ Image Processing, Cleaning และลบไฟล์ขยะ...\n")
     
     for img_path in data_path.glob("**/*.*"):
         if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
@@ -73,54 +77,76 @@ def comprehensive_preprocessing(data_dir):
             class_out_dir.mkdir(parents=True, exist_ok=True)
 
             try:
+                # ตรวจสอบความสมบูรณ์ของไฟล์ภาพ
                 with Image.open(img_path) as img:
                     img.verify()
                 
                 with Image.open(img_path) as img:
                     original_img = img.copy() 
-                    
                     img = img.convert('RGB')
-                    img = img.resize((224, 224))
-                    img = img.filter(ImageFilter.MedianFilter(size=3))
                     
+                    # 1. Resize ด้วย LANCZOS เพื่อรักษาความคมชัด ขอบไม่แตก
+                    img_resized = img.resize((224, 224), Image.Resampling.LANCZOS)
+                    
+                    # 2. เพิ่มความคมชัด (Sharpen) แทนการใช้ฟิลเตอร์เบลอ
+                    enhancer_sharp = ImageEnhance.Sharpness(img_resized)
+                    img_enhanced = enhancer_sharp.enhance(1.5) 
+                    
+                    # 3. Data Augmentation (Flip & Brightness)
+                    img_augmented = img_enhanced.copy()
                     if np.random.rand() > 0.5:
-                        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                        img_augmented = img_augmented.transpose(Image.FLIP_LEFT_RIGHT)
                     
-                    enhancer = ImageEnhance.Brightness(img)
-                    img = enhancer.enhance(np.random.uniform(0.8, 1.2)) 
+                    enhancer_bright = ImageEnhance.Brightness(img_augmented)
+                    img_augmented = enhancer_bright.enhance(np.random.uniform(0.8, 1.2)) 
                     
-                    img_array_normalized = np.array(img) / 255.0
-                    
-                    img_hash = imagehash.average_hash(img)
+                    # 4. ตรวจสอบภาพซ้ำ (Duplicate Detection)
+                    img_hash = imagehash.average_hash(img_augmented)
                     if img_hash in hashes:
                         removed_duplicates += 1
+                        # หากเจอภาพซ้ำ สามารถลบทิ้งจากต้นทางได้เลย (หรือข้ามการเซฟ)
+                        try:
+                            os.remove(img_path)
+                        except OSError:
+                            pass
                         continue
                     else:
                         hashes[img_hash] = img_path.name
                         
+                        # บันทึกภาพตัวอย่าง Before/After 4 ขั้นตอน
                         if class_name in sample_saved and not sample_saved[class_name]:
-                            plot_path = report_dir / f"before_after_{class_name}.png"
-                            save_before_after_plot(original_img, img, plot_path)
-                            print(f"📸 สร้างรูป Before/After ของ {class_name} ไว้ที่: {plot_path}")
+                            plot_path = report_dir / f"step_by_step_{class_name}.png"
+                            save_step_by_step_plot(original_img, img_resized, img_enhanced, img_augmented, plot_path)
+                            print(f"📸 บันทึกภาพขั้นตอนประมวลผลของ {class_name} ไว้ที่: {plot_path}")
                             sample_saved[class_name] = True
                         
+                        # บันทึกไฟล์ที่ผ่านการ Clean ลงโฟลเดอร์ processed
                         out_file = class_out_dir / img_path.name
-                        img.save(out_file)
+                        img_augmented.save(out_file)
                         
-                        class_counts[class_name] = class_counts.get(class_name, 0) + 1
+                        cleaned_counts[class_name] = cleaned_counts.get(class_name, 0) + 1
 
             except (IOError, SyntaxError):
+                # หากเจอไฟล์เสีย (Corrupted) สั่งลบทิ้งจากเครื่องทันที
                 removed_corrupt += 1
+                try:
+                    os.remove(img_path)
+                except OSError:
+                    pass
 
-    print("\n" + "="*40)
-    print("--- สรุปผลการทำ Data Preprocessing ---")
-    print(f"ภาพเสีย (Corrupted) ที่คัดทิ้ง: {removed_corrupt} ไฟล์")
-    print(f"ภาพซ้ำ (Duplicates) ที่คัดทิ้ง: {removed_duplicates} ไฟล์")
-    print("="*40)
-    print(f"\n✅ เสร็จสิ้น! โฟลเดอร์งานถูกสร้างและจัดการเรียบร้อยใน: {current_project_dir}")
+    # แสดงรายงานสรุปผล
+    print("\n" + "="*45)
+    print("--- สรุปผลการทำ Data Preprocessing & Cleaning ---")
+    print(f"ภาพเสีย (Corrupted) ที่ตรวจพบและลบทิ้ง: {removed_corrupt} ไฟล์")
+    print(f"ภาพซ้ำ (Duplicates) ที่ตรวจพบและคัดทิ้ง: {removed_duplicates} ไฟล์")
+    print("-" * 45)
+    print("จำนวนไฟล์ที่เหลือหลังผ่านการจัดการ (Cleaned & Processed):")
+    for c_name, count in cleaned_counts.items():
+        print(f"  - คลาส '{c_name}': {count} ไฟล์")
+    print(f"  - รวมทั้งหมดที่พร้อมใช้งาน: {sum(cleaned_counts.values())} ไฟล์")
+    print("="*45)
+    print(f"\n✅ เสร็จสิ้น! ไฟล์ถูกคลีนและจัดเก็บเรียบร้อย")
 
 
 if __name__ == "__main__":
-    # ดึง Path ข้อมูลจาก data_collection.py มาประมวลผลต่อ
-    dataset_path = data_collection.get_dataset_path()
-    comprehensive_preprocessing(dataset_path)
+    comprehensive_preprocessing()
