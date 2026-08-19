@@ -5,18 +5,26 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import hashlib
-from glob import from PIL import Image
+from glob import glob
+from PIL import Image
 
 # ==========================================
-# 1. การจัดการ Path และโฟลเดอร์ผลลัพธ์ (แบบยืดหยุ่น)
+# 1. การจัดการ Path และโฟลเดอร์ผลลัพธ์
 # ==========================================
+# ดึง Path ทั้งจาก Terminal (getcwd) และจากตำแหน่งที่ไฟล์ eda.py ตั้งอยู่จริง (script_dir)
 current_path = os.getcwd()
+script_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else current_path
 
-# สร้างลิสต์ของ Path ที่เป็นไปได้ทั้งหมด
+# รายการ Path ที่เป็นไปได้ทั้งหมด (รองรับกรณีโฟลเดอร์ซ้อนกัน)
 possible_paths = [
-    os.path.join(current_path, "train"), # กรณี train อยู่หน้าสุด
-    os.path.join(current_path, "Dataset-cat-and-dog-image", "train"), # กรณีซ้อนในโฟลเดอร์เดิม
-    os.path.join(current_path, "data", "train") # กรณีจัดระเบียบใหม่ไว้ใน data
+    os.path.join(current_path, "Dataset-cat-and-dog-image", "Dataset-cat-and-dog-image", "train"),
+    os.path.join(script_dir, "Dataset-cat-and-dog-image", "Dataset-cat-and-dog-image", "train"),
+    os.path.join(current_path, "Dataset-cat-and-dog-image", "train"),
+    os.path.join(script_dir, "Dataset-cat-and-dog-image", "train"),
+    os.path.join(current_path, "train"),
+    os.path.join(script_dir, "train"),
+    os.path.join(current_path, "data", "train"),
+    os.path.join(script_dir, "data", "train")
 ]
 
 DATASET_DIR = None
@@ -55,7 +63,8 @@ def extract_image_metadata(dataset_dir):
     """ดึง Metadata และตรวจสอบคุณภาพรูปภาพ"""
     data = []
     
-    if not os.path.exists(dataset_dir):
+    # ป้องกัน TypeError กรณี dataset_dir เป็น None หรือหา Path ไม่พบ
+    if not dataset_dir or not os.path.exists(dataset_dir):
         print(f"Error: ไม่พบโฟลเดอร์ {dataset_dir}")
         return pd.DataFrame()
         
@@ -203,46 +212,50 @@ def generate_summary_report(df):
 # ==========================================
 if __name__ == "__main__":
     print("⏳ กำลังเริ่มวิเคราะห์ข้อมูลรูปภาพ...")
-    df = extract_image_metadata(DATASET_DIR)
     
-    if not df.empty:
-        df_valid = df[df["corrupted"] == False]
-        
-        # 1. วาดกราฟเชิงปริมาณ
-        plt.figure(figsize=(14, 10))
-        plt.subplot(2, 2, 1)
-        sns.countplot(data=df_valid, x="class")
-        plt.title("Class Distribution")
-        
-        plt.subplot(2, 2, 2)
-        sns.scatterplot(data=df_valid, x="width", y="height", hue="class", alpha=0.5)
-        plt.title("Dimensions (Width vs Height)")
-        
-        plt.subplot(2, 2, 3)
-        sns.histplot(data=df_valid, x="aspect_ratio", bins=30, kde=True)
-        plt.title("Aspect Ratio Distribution")
-        
-        plt.subplot(2, 2, 4)
-        sns.histplot(data=df_valid, x="size_kb", bins=30, kde=True)
-        plt.title("File Size Distribution (KB)")
-        
-        plt.tight_layout()
-        summary_plot_path = os.path.join(FIGURES_DIR, "01_eda_summary_plots.png")
-        plt.savefig(summary_plot_path, dpi=200)
-        plt.close()
-        
-        # 2. สุ่มวาดภาพตัวอย่างและ Histogram เชิงคุณภาพ
-        print("🖼️ กำลังสุ่มตรวจคุณภาพรูปภาพและสร้าง Histogram...")
-        plot_and_save_samples(df_valid, n_samples=3)
-        
-        # 3. สร้าง Markdown Report
-        print("📝 กำลังเขียนรายงานสรุปผลลง eda_summary.md...")
-        generate_summary_report(df)
-        
-        print("\n" + "="*40)
-        print("🎉 การทำ EDA เสร็จสมบูรณ์แล้ว!")
-        print(f"📁 ดูกราฟทั้งหมดได้ที่: {FIGURES_DIR}")
-        print(f"📄 ดูรายงานสรุปผลได้ที่: {SUMMARY_FILE}")
-        print("="*40)
+    if not DATASET_DIR:
+        print("❌ ไม่พบโฟลเดอร์ train ในโครงสร้างปัจจุบัน กรุณาตรวจสอบตำแหน่งโฟลเดอร์รูปภาพ")
     else:
-        print("❌ ไม่พบข้อมูลรูปภาพ กรุณาตรวจสอบ Path โฟลเดอร์อีกครั้ง")
+        df = extract_image_metadata(DATASET_DIR)
+        
+        if not df.empty:
+            df_valid = df[df["corrupted"] == False]
+            
+            # 1. วาดกราฟเชิงปริมาณ
+            plt.figure(figsize=(14, 10))
+            plt.subplot(2, 2, 1)
+            sns.countplot(data=df_valid, x="class")
+            plt.title("Class Distribution")
+            
+            plt.subplot(2, 2, 2)
+            sns.scatterplot(data=df_valid, x="width", y="height", hue="class", alpha=0.5)
+            plt.title("Dimensions (Width vs Height)")
+            
+            plt.subplot(2, 2, 3)
+            sns.histplot(data=df_valid, x="aspect_ratio", bins=30, kde=True)
+            plt.title("Aspect Ratio Distribution")
+            
+            plt.subplot(2, 2, 4)
+            sns.histplot(data=df_valid, x="size_kb", bins=30, kde=True)
+            plt.title("File Size Distribution (KB)")
+            
+            plt.tight_layout()
+            summary_plot_path = os.path.join(FIGURES_DIR, "01_eda_summary_plots.png")
+            plt.savefig(summary_plot_path, dpi=200)
+            plt.close()
+            
+            # 2. สุ่มวาดภาพตัวอย่างและ Histogram เชิงคุณภาพ
+            print("🖼️ กำลังสุ่มตรวจคุณภาพรูปภาพและสร้าง Histogram...")
+            plot_and_save_samples(df_valid, n_samples=3)
+            
+            # 3. สร้าง Markdown Report
+            print("📝 กำลังเขียนรายงานสรุปผลลง eda_summary.md...")
+            generate_summary_report(df)
+            
+            print("\n" + "="*40)
+            print("🎉 การทำ EDA เสร็จสมบูรณ์แล้ว!")
+            print(f"📁 ดูกราฟทั้งหมดได้ที่: {FIGURES_DIR}")
+            print(f"📄 ดูรายงานสรุปผลได้ที่: {SUMMARY_FILE}")
+            print("="*40)
+        else:
+            print("❌ ไม่พบข้อมูลรูปภาพ กรุณาตรวจสอบ Path โฟลเดอร์อีกครั้ง")
