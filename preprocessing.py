@@ -1,145 +1,74 @@
 import os
-import sys
 from pathlib import Path
-from PIL import Image, ImageEnhance
+from PIL import Image
 import imagehash
-import numpy as np
-import matplotlib.pyplot as plt
+import kagglehub
 
-# ตั้งค่า Path ปัจจุบันของโปรเจกต์
-current_project_dir = Path(os.path.abspath(__file__)).parent
+def download_dataset():
+    """ดึง Dataset อัตโนมัติผ่าน Kaggle API ตามข้อกำหนดของโจทย์"""
+    print("กำลังดาวน์โหลด Dataset จาก Kaggle...")
+    path = kagglehub.dataset_download("samuelcortinhas/cats-and-dogs-image-classification")
+    print(f"ดาวน์โหลดสำเร็จ! พาธข้อมูลอยู่ที่: {path}")
+    return path
 
-def save_step_by_step_plot(original, resized, enhanced, augmented, save_path):
+def comprehensive_preprocessing(data_dir):
     """
-    ฟังก์ชันแสดงภาพ Before/After ของทุกขั้นตอน เพื่อยืนยันผลลัพธ์
+    ดำเนินการตามหัวข้อ 4.3 Data Preprocessing:
+    1. ลบไฟล์เสียหาย (Corrupted Images)
+    2. แปลง Format และ Color Space เป็น RGB มาตรฐาน
+    3. ตรวจจับและจัดการรูปภาพซ้ำ (Duplicate Detection ด้วย Perceptual Hash)
+    4. ตรวจสอบความสมดุลของข้อมูลระหว่าง Class (Class Imbalance)
     """
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+    data_path = Path(data_dir)
     
-    axes[0].imshow(original)
-    axes[0].set_title("1. Original\n(ภาพต้นฉบับ)")
-    axes[0].axis('off')
-    
-    axes[1].imshow(resized)
-    axes[1].set_title("2. Resized (224x224, LANCZOS)\n(ปรับขนาดไม่ให้ภาพแตก)")
-    axes[1].axis('off')
-    
-    axes[2].imshow(enhanced)
-    axes[2].set_title("3. Sharpened\n(เพิ่มความคมชัด)")
-    axes[2].axis('off')
-    
-    axes[3].imshow(augmented)
-    axes[3].set_title("4. Augmented\n(Flip/Brightness)")
-    axes[3].axis('off')
-    
-    plt.tight_layout()
-    plt.savefig(save_path)
-    plt.close()
-
-def comprehensive_preprocessing():
-    data_path = current_project_dir / 'Dataset-cat-and-dog-image'
-    
-    if not data_path.exists():
-        print(f"❌ ไม่พบโฟลเดอร์ {data_path.name} ในเครื่อง กรุณาตรวจสอบตำแหน่งโฟลเดอร์")
-        sys.exit(1)
-
-    output_dir = current_project_dir / 'data' / 'processed'
-    report_dir = current_project_dir / 'reports' / 'figures'
-    
-    # สร้างโฟลเดอร์สำหรับเก็บผลลัพธ์
-    report_dir.mkdir(parents=True, exist_ok=True)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    initial_counts = {}
-    cleaned_counts = {}
     removed_corrupt = 0
     removed_duplicates = 0
-    hashes = {}          
-    sample_saved = {'cats': False, 'dogs': False}
-
-    print(f"[Preprocessing] กำลังสำรวจและนับจำนวนรูปภาพจากโฟลเดอร์ {data_path.name}...\n")
+    hashes = {} # สำหรับเก็บค่า Hash ป้องกันภาพซ้ำ
     
-    # 1. นับจำนวนไฟล์เริ่มต้นแยกตามคลาส
-    for img_path in data_path.glob("**/*.*"):
-        if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
-            c_name = img_path.parent.name
-            initial_counts[c_name] = initial_counts.get(c_name, 0) + 1
+    class_counts = {}
 
-    print("--- จำนวนไฟล์เริ่มต้น (Raw Dataset) ---")
-    for c_name, count in initial_counts.items():
-        print(f"- คลาส '{c_name}': {count} ไฟล์")
-    print("-" * 40)
-
-    print(f"[Preprocessing] เริ่มกระบวนการ Image Processing, Cleaning และคัดกรองไฟล์...\n")
+    print("กำลังเริ่มกระบวนการ Data Preprocessing...")
     
     for img_path in data_path.glob("**/*.*"):
         if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
+            # ระบุชื่อ Class จากชื่อโฟลเดอร์แม่
             class_name = img_path.parent.name
-            class_out_dir = output_dir / class_name
-            class_out_dir.mkdir(parents=True, exist_ok=True)
+            class_counts[class_name] = class_counts.get(class_name, 0) + 1
 
             try:
-                # 1. ตรวจสอบความสมบูรณ์ของไฟล์ภาพ (ไฟล์เสียจะกระโดดไป except ทันที)
+                # 1. ตรวจสอบความเสียหายของภาพ
                 with Image.open(img_path) as img:
                     img.verify()
                 
                 with Image.open(img_path) as img:
-                    original_img = img.copy() 
+                    # 4. แปลง Color Space เป็น RGB เสมอ
                     img = img.convert('RGB')
                     
-                    # 2. ตรวจสอบภาพซ้ำ (Duplicate Detection)
-                    # *แก้ไข:* ทำการเช็ค Hash จากภาพต้นฉบับก่อนโดน Augment เพื่อให้เช็คได้แม่นยำ
+                    # 2. ตรวจจับรูปภาพซ้ำ (Duplicate Detection ด้วย Perceptual Hash)
                     img_hash = imagehash.average_hash(img)
                     if img_hash in hashes:
+                        print(f"พบภาพซ้ำ ลบออก: {img_path} (ซ้ำกับ {hashes[img_hash]})")
+                        img_path.unlink()
                         removed_duplicates += 1
-                        # ข้ามการทำงานไปเลย ไม่เซฟรูปลงโฟลเดอร์ processed (และไม่ลบไฟล์ต้นฉบับ)
                         continue
                     else:
-                        hashes[img_hash] = img_path.name
-                    
-                    # 3. Resize ด้วย LANCZOS เพื่อรักษาความคมชัด ขอบไม่แตก
-                    img_resized = img.resize((224, 224), Image.Resampling.LANCZOS)
-                    
-                    # 4. เพิ่มความคมชัด (Sharpen) แทนการใช้ฟิลเตอร์เบลอ
-                    enhancer_sharp = ImageEnhance.Sharpness(img_resized)
-                    img_enhanced = enhancer_sharp.enhance(1.5) 
-                    
-                    # 5. Data Augmentation (Flip & Brightness)
-                    img_augmented = img_enhanced.copy()
-                    if np.random.rand() > 0.5:
-                        img_augmented = img_augmented.transpose(Image.FLIP_LEFT_RIGHT)
-                    
-                    enhancer_bright = ImageEnhance.Brightness(img_augmented)
-                    img_augmented = enhancer_bright.enhance(np.random.uniform(0.8, 1.2)) 
-                    
-                    # 6. บันทึกภาพตัวอย่าง Before/After 4 ขั้นตอน (คลาสละ 1 รูป)
-                    if class_name in sample_saved and not sample_saved[class_name]:
-                        plot_path = report_dir / f"step_by_step_{class_name}.png"
-                        save_step_by_step_plot(original_img, img_resized, img_enhanced, img_augmented, plot_path)
-                        print(f"📸 บันทึกภาพขั้นตอนประมวลผลของ {class_name} ไว้ที่: {plot_path}")
-                        sample_saved[class_name] = True
-                    
-                    # 7. บันทึกไฟล์ที่ผ่านกระบวนการแล้วลงโฟลเดอร์ processed
-                    out_file = class_out_dir / img_path.name
-                    img_augmented.save(out_file)
-                    
-                    cleaned_counts[class_name] = cleaned_counts.get(class_name, 0) + 1
+                        hashes[img_hash] = img_path
 
             except (IOError, SyntaxError):
-                # หากเจอไฟล์เสีย (Corrupted) ให้นับจำนวนไว้และข้ามไฟล์นั้นไป (ไม่ลบต้นฉบับ)
+                print(f"พบภาพเสียและกำลังลบออก: {img_path}")
+                img_path.unlink() # 1. ลบไฟล์ที่เสียหาย
                 removed_corrupt += 1
 
-    # แสดงรายงานสรุปผล
-    print("\n" + "="*45)
-    print("--- สรุปผลการทำ Data Preprocessing & Cleaning ---")
-    print(f"ภาพเสีย (Corrupted) ที่ตรวจพบและคัดทิ้ง: {removed_corrupt} ไฟล์")
-    print(f"ภาพซ้ำ (Duplicates) ที่ตรวจพบและคัดทิ้ง: {removed_duplicates} ไฟล์")
-    print("-" * 45)
-    print("จำนวนไฟล์ที่จัดเก็บในโฟลเดอร์ Processed พร้อมใช้งาน:")
-    for c_name, count in cleaned_counts.items():
-        print(f"  - คลาส '{c_name}': {count} ไฟล์")
-    print(f"  - รวมทั้งหมดที่พร้อมใช้งาน: {sum(cleaned_counts.values())} ไฟล์")
-    print("="*45)
-    print(f"\n✅ เสร็จสิ้น! ไฟล์รูปภาพที่สมบูรณ์ถูกจัดเก็บไว้ที่โฟลเดอร์ {output_dir}")
+    print("\n--- สรุปผลการทำ Data Preprocessing ---")
+    print(f"ลบภาพเสีย (Corrupted): {removed_corrupt} ไฟล์")
+    print(f"ลบภาพซ้ำ (Duplicates): {removed_duplicates} ไฟล์")
+    
+    # 3. รายงานสถิติ Class Imbalance เพื่อวางแผนจัดการต่อ (เช่น Oversampling/Undersampling)
+    print("\nจำนวนข้อมูลแต่ละ Class (Class Imbalance Check):")
+    for cls, count in class_counts.items():
+        print(f"- Class '{cls}': {count} รูปภาพ")
 
 if __name__ == "__main__":
-    comprehensive_preprocessing()
+    dataset_path = download_dataset()
+    # เปิดใช้งานฟังก์ชันหลัก
+    comprehensive_preprocessing(dataset_path)
