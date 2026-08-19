@@ -5,8 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import hashlib
-from glob import glob
-from PIL import Image
+from glob import from PIL import Image
 
 # ==========================================
 # 1. การจัดการ Path และโฟลเดอร์ผลลัพธ์ (แบบยืดหยุ่น)
