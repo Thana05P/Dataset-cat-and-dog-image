@@ -1,271 +1,233 @@
-import hashlib
 import os
-import warnings
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import seaborn as sns
-from PIL import Image, ImageFile
+import hashlib
+from glob import glob
+from PIL import Image
 
 # ==========================================
-# CONFIGURATION & WARNING SETTINGS
+# 1. การจัดการ Path และโฟลเดอร์ผลลัพธ์
 # ==========================================
-# อนุญาตให้โหลดไฟล์ภาพที่ไม่สมบูรณ์ (Fix: Truncated File Warning)
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
-# ปิดการแสดงผล Warning บน Terminal
-warnings.filterwarnings("ignore", category=UserWarning)
-
-DATA_DIR = r"C:\Users\ohmde\AppData\Local\Programs\Microsoft VS Code"
-FIGURES_DIR = "reports/figures"
-SUMMARY_FILE = "reports/eda_summary.md"
+current_path = os.getcwd()
+DATASET_DIR = os.path.join(current_path, "Dataset-cat-and-dog-image", "train")
+REPORTS_DIR = os.path.join(current_path, "reports")
+FIGURES_DIR = os.path.join(REPORTS_DIR, "figures")
+SUMMARY_FILE = os.path.join(REPORTS_DIR, "eda_summary.md")
 
 os.makedirs(FIGURES_DIR, exist_ok=True)
-os.makedirs(os.path.dirname(SUMMARY_FILE), exist_ok=True)
-sns.set_theme(style="whitegrid")
 
+print(f"Current Working Directory: {current_path}")
+print(f"Target Dataset Path: {DATASET_DIR}")
+print(f"Reports will be saved to: {REPORTS_DIR}\n")
 
 # ==========================================
-# 1. METADATA EXTRACTION & ANOMALY DETECTION
+# 2. ฟังก์ชันตรวจสอบเชิงปริมาณ (Quantitative)
 # ==========================================
-def calculate_md5(file_path):
-    hasher = hashlib.md5()
-    try:
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hasher.update(chunk)
-        return hasher.hexdigest()
-    except Exception:
-        return None
+def calculate_md5(image_path):
+    """หาค่า Hash ตรวจจับรูปซ้ำ"""
+    with open(image_path, "rb") as f:
+        file_hash = hashlib.md5()
+        chunk = f.read(8192)
+        while chunk:
+            file_hash.update(chunk)
+            chunk = f.read(8192)
+    return file_hash.hexdigest()
 
-
-def extract_and_clean_metadata(data_dir):
-    print("[*] Starting Data Extraction & Anomaly Detection...")
+def extract_image_metadata(dataset_dir):
+    """ดึง Metadata และตรวจสอบคุณภาพรูปภาพ"""
     data = []
-    valid_exts = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
-
-    for root, _, files in os.walk(data_dir):
-        if root == data_dir:
+    
+    if not os.path.exists(dataset_dir):
+        print(f"Error: ไม่พบโฟลเดอร์ {dataset_dir}")
+        return pd.DataFrame()
+        
+    classes = os.listdir(dataset_dir)
+    
+    for cls in classes:
+        class_path = os.path.join(dataset_dir, cls)
+        if not os.path.isdir(class_path): 
             continue
-        cls = os.path.basename(root)
-
-        for f in files:
-            file_path = os.path.join(root, f)
-            if not f.lower().endswith(valid_exts):
-                continue
-
-            file_size_kb = os.path.getsize(file_path) / 1024.0
-            is_corrupted = False
-            w, h, channels = None, None, None
-
-            # Check Corrupted File & Extract Info
+            
+        for img_path in glob(os.path.join(class_path, "*.*")):
+            file_size_kb = os.path.getsize(img_path) / 1024
+            
             try:
-                with Image.open(file_path) as img:
-                    img.verify()
-                with Image.open(file_path) as img:
-                    img.load()  # บังคับอ่านข้อมูลภาพเพื่อดักจับไฟล์ที่เสียจริง
-                    w, h = img.size
-                    channels = len(img.getbands())
-            except Exception:
-                is_corrupted = True
-
-            data.append(
-                {
-                    "file_path": file_path,
-                    "filename": f,
+                # ตรวจสอบไฟล์เสีย
+                img_pil = Image.open(img_path)
+                img_pil.verify()
+                
+                # อ่านด้วย OpenCV
+                img = cv2.imread(img_path)
+                if img is None:
+                    raise ValueError("Cannot read image")
+                
+                h, w, c = img.shape if len(img.shape) == 3 else (img.shape[0], img.shape[1], 1)
+                aspect_ratio = w / h
+                is_grayscale = (c == 1) or (np.array_equal(img[:,:,0], img[:,:,1]) and np.array_equal(img[:,:,1], img[:,:,2]))
+                img_hash = calculate_md5(img_path)
+                
+                # ตรวจสอบความเบลอ (Variance of Laplacian)
+                gray_for_blur = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if c == 3 else img
+                blur_score = cv2.Laplacian(gray_for_blur, cv2.CV_64F).var()
+                
+                data.append({
+                    "path": img_path,
                     "class": cls,
-                    "file_size_kb": file_size_kb,
                     "width": w,
                     "height": h,
-                    "aspect_ratio": (w / h) if (w and h) else None,
-                    "channels": channels,
-                    "is_corrupted": is_corrupted,
-                }
-            )
-
-    df = pd.DataFrame(data)
-
-    # Check Duplicate Files via MD5
-    valid_df = df[~df["is_corrupted"]].copy()
-    valid_df["file_hash"] = valid_df["file_path"].apply(calculate_md5)
-    dup_hashes = set(
-        valid_df[valid_df.duplicated(subset=["file_hash"], keep=False)][
-            "file_hash"
-        ]
-    )
-    df["is_duplicate"] = df["file_path"].apply(
-        lambda x: valid_df.loc[
-            valid_df["file_path"] == x, "file_hash"
-        ].values[0]
-        in dup_hashes
-        if x in valid_df["file_path"].values
-        else False
-    )
-
-    # Check Grayscale in RGB
-    df["is_grayscale"] = df["channels"] == 1
-
-    return df
-
+                    "channels": c,
+                    "aspect_ratio": aspect_ratio,
+                    "size_kb": file_size_kb,
+                    "is_grayscale": is_grayscale,
+                    "hash": img_hash,
+                    "blur_score": blur_score,
+                    "corrupted": False
+                })
+                
+            except Exception as e:
+                data.append({
+                    "path": img_path, "class": cls, "corrupted": True, "error": str(e)
+                })
+                
+    return pd.DataFrame(data)
 
 # ==========================================
-# 2. QUANTITATIVE & QUALITATIVE PLOTS
+# 3. ฟังก์ชันสุ่มตรวจเชิงคุณภาพ (Qualitative)
 # ==========================================
-def generate_plots(df):
-    print("[*] Generating Figures...")
-    valid_df = df[~df["is_corrupted"]]
-
-    # 1. Class Distribution
-    # แนะนำให้ปรับความกว้างเพิ่มขึ้นเล็กน้อย เช่น (10, 5) หรือ (12, 6)
-    plt.figure(figsize=(10, 5)) 
-    ax = sns.countplot(data=df, x="class", hue="class", palette="viridis")
-    plt.title("1. Class Distribution (Class Imbalance Check)")
-
-    # === เพิ่มบรรทัดนี้เพื่อหมุนตัวหนังสือแกน X ===
-    plt.xticks(rotation=45, ha='right')
-    # ======================================
-
-    for p in ax.patches:
-        ax.annotate(
-            f"{int(p.get_height())}",
-            (p.get_x() + p.get_width() / 2.0, p.get_height()),
-            ha="center",
-            va="bottom",
-        )
-    plt.tight_layout()
-    plt.savefig(f"{FIGURES_DIR}/class_distribution.png", dpi=300)
-    plt.close()
-
-    # 2. Dimensions & File Size Distributions
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-    sns.histplot(
-        valid_df, x="width", kde=True, ax=axes[0], color="blue", bins=30
-    )
-    axes[0].set_title("Width Distribution")
-
-    sns.histplot(
-        valid_df, x="aspect_ratio", kde=True, ax=axes[1], color="green", bins=30
-    )
-    axes[1].set_title("Aspect Ratio Distribution")
-
-    sns.histplot(
-        valid_df,
-        x="file_size_kb",
-        kde=True,
-        ax=axes[2],
-        color="orange",
-        bins=30,
-    )
-    axes[2].set_title("File Size (KB) Distribution")
-    plt.tight_layout()
-    plt.savefig(f"{FIGURES_DIR}/dimension_distributions.png", dpi=300)
-    plt.close()
-
-    # 3. Channel Pixel Intensity Histogram & Stats
-    sample_df = valid_df.sample(min(300, len(valid_df)), random_state=42)
-    r_list, g_list, b_list = [], [], []
-
-    for path in sample_df["file_path"]:
-        img = cv2.imread(path)
-        if img is not None and len(img.shape) == 3:
-            b_list.extend(img[:, :, 0].flatten())
-            g_list.extend(img[:, :, 1].flatten())
-            r_list.extend(img[:, :, 2].flatten())
-
-    plt.figure(figsize=(8, 4))
-    sns.kdeplot(r_list, color="red", label="Red Channel")
-    sns.kdeplot(g_list, color="green", label="Green Channel")
-    sns.kdeplot(b_list, color="blue", label="Blue Channel")
-    plt.title("Pixel Intensity Histogram per Channel")
-    plt.xlabel("Pixel Intensity (0-255)")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"{FIGURES_DIR}/channel_histogram.png", dpi=300)
-    plt.close()
-
-    # Calculate Channel Statistics
-    stats = {
-        "Channel": ["Red", "Green", "Blue"],
-        "Mean": [np.mean(r_list), np.mean(g_list), np.mean(b_list)],
-        "Std": [np.std(r_list), np.std(g_list), np.std(b_list)],
-        "Min": [np.min(r_list), np.min(g_list), np.min(b_list)],
-        "Max": [np.max(r_list), np.max(g_list), np.max(b_list)],
-    }
-    stats_df = pd.DataFrame(stats)
-
-    # 4. Qualitative Grid Sample
-    classes = valid_df["class"].unique()
-    fig, axes = plt.subplots(len(classes), 4, figsize=(12, 3 * len(classes)))
-    for i, cls in enumerate(classes):
-        samples = valid_df[valid_df["class"] == cls].sample(
-            4, random_state=42
-        )["file_path"].values
-        for j, path in enumerate(samples):
-            ax = axes[i, j]
-            img = Image.open(path)
-            ax.imshow(img)
-            ax.set_title(f"{cls}\n{img.size[0]}x{img.size[1]}")
-            ax.axis("off")
-    plt.tight_layout()
-    plt.savefig(f"{FIGURES_DIR}/sample_grid.png", dpi=300)
-    plt.close()
-
-    return stats_df
-
+def plot_and_save_samples(df, n_samples=3):
+    """สุ่มตัวอย่างภาพและบันทึกกราฟ Histogram แยกราย Class"""
+    classes = df["class"].unique()
+    
+    for cls in classes:
+        sample_df = df[(df["class"] == cls) & (df["corrupted"] == False)]
+        if sample_df.empty: 
+            continue
+            
+        sample_df = sample_df.sample(min(n_samples, len(sample_df)))
+        
+        fig, axes = plt.subplots(n_samples, 2, figsize=(10, 3 * n_samples))
+        fig.suptitle(f"Qualitative Inspection & Intensity Histogram: Class '{cls}'", fontsize=14)
+        
+        if n_samples == 1:
+            axes = np.array([axes])
+            
+        for i, (_, row) in enumerate(sample_df.iterrows()):
+            img = cv2.imread(row["path"])
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            
+            # ช่องซ้าย: รูปภาพ + ค่า Blur
+            axes[i, 0].imshow(img_rgb)
+            axes[i, 0].set_title(f"Blur Score: {row['blur_score']:.2f}")
+            axes[i, 0].axis('off')
+            
+            # ช่องขวา: Histogram สี
+            colors = ('r', 'g', 'b')
+            for j, color in enumerate(colors):
+                hist = cv2.calcHist([img_rgb], [j], None, [256], [0, 256])
+                axes[i, 1].plot(hist, color=color)
+                axes[i, 1].set_xlim([0, 256])
+            axes[i, 1].set_title("Color Channel Distribution")
+            
+        plt.tight_layout()
+        sample_fig_path = os.path.join(FIGURES_DIR, f"sample_class_{cls}.png")
+        plt.savefig(sample_fig_path, dpi=200, bbox_inches='tight')
+        plt.close()
 
 # ==========================================
-# 3. GENERATE MD SUMMARY REPORT & INSIGHTS
+# 4. ฟังก์ชันเขียนรายงานสรุปผล (Markdown Report)
 # ==========================================
-def write_summary_report(df, stats_df):
-    print("[*] Writing Markdown Summary Report...")
-    total_imgs = len(df)
-    class_counts = df["class"].value_counts().to_dict()
-    corrupted_cnt = df["is_corrupted"].sum()
-    duplicate_cnt = df["is_duplicate"].sum()
-    grayscale_cnt = df["is_grayscale"].sum()
+def generate_summary_report(df):
+    df_valid = df[df["corrupted"] == False]
+    class_counts = df_valid['class'].value_counts().to_markdown()
+    
+    report_md = f"""# 📊 Exploratory Data Analysis (EDA) Summary Report
 
-    md_content = f"""# Exploratory Data Analysis (EDA) Report
+## 1. ข้อมูลเชิงปริมาณ (Quantitative Summary)
+* **จำนวนรูปภาพทั้งหมด (Total Images):** {len(df)} ไฟล์
+* **ไฟล์ที่ชำรุด/เปิดไม่ได้ (Corrupted):** {df['corrupted'].sum()} ไฟล์
+* **รูปภาพที่มีความซ้ำซ้อน (Duplicate Hashes):** {df_valid['hash'].duplicated().sum()} รูป
+* **รูป Grayscale ที่ปนใน RGB:** {df_valid['is_grayscale'].sum()} รูป
 
-## 1. Quantitative EDA
-* **Total Images:** {total_imgs}
-* **Class Counts:** {class_counts}
-* **Channel Pixel Statistics:**
+### สรุปจำนวนข้อมูลแยกตาม Class (Class Distribution)
+{class_counts}
 
-{stats_df.to_markdown(index=False)}
+### สถิติขนาดภาพและความสว่าง
+| ตัวชี้วัด | ค่าเฉลี่ย (Mean) | ค่าน้อยสุด (Min) | ค่ามากสุด (Max) |
+| :--- | :--- | :--- | :--- |
+| **Width (px)** | {df_valid['width'].mean():.1f} | {df_valid['width'].min()} | {df_valid['width'].max()} |
+| **Height (px)** | {df_valid['height'].mean():.1f} | {df_valid['height'].min()} | {df_valid['height'].max()} |
+| **Aspect Ratio (W/H)** | {df_valid['aspect_ratio'].mean():.2f} | {df_valid['aspect_ratio'].min():.2f} | {df_valid['aspect_ratio'].max():.2f} |
+| **File Size (KB)** | {df_valid['size_kb'].mean():.1f} | {df_valid['size_kb'].min():.1f} | {df_valid['size_kb'].max():.1f} |
+| **Blur Score (Laplacian)** | {df_valid['blur_score'].mean():.1f} | {df_valid['blur_score'].min():.1f} | {df_valid['blur_score'].max():.1f} |
 
-## 2. Anomaly Detection Report
-* **Corrupted Files:** {corrupted_cnt}
-* **Duplicate Images:** {duplicate_cnt}
-* **Grayscale Images in RGB Dataset:** {grayscale_cnt}
+---
 
-## 3. Qualitative Assessment & Content Issues
-จากการสุ่มตรวจ Sample Grid พบปัญหาเชิงเนื้อหาดังนี้:
-1. **Aspect Ratio Variation:** ภาพมีความกว้างและยาวไม่เท่ากัน
-2. **Lighting Conditions:** แสงสว่างมีความแตกต่างกันอย่างมากในแต่ละรูป
-3. **Complex Backgrounds:** มีสิ่งกีดขวางและ Background ที่ซับซ้อน เช่น กรง หญ้า เฟอร์นิเจอร์
+## 2. ข้อค้นพบเชิงคุณภาพ (Qualitative Observations)
+* **ตัวอย่างรูปภาพและ Histogram:** บันทึกไว้ที่โฟลเดอร์ `reports/figures/`
+* **การตรวจสอบด้วยสายตา (Visual Check):**
+  * ควรเปิดดูรูปภาพใน `sample_class_*.png` เพื่อตรวจว่ามีลายน้ำ (Watermark), ป้ายข้อความ, มุมกล้องที่กลับหัว หรือภาพเบลอจนมองไม่เห็นวัตถุหรือไม่
 
-## 4. Insights & Impact on Model Training
-* **Class Balance:** จำนวนข้อมูลระหว่างคลาสมีความสมดุล ทำให้ไม่ต้องปรับ Weight ใน Loss Function
-* **Preprocessing Needs:** 
-  * จำเป็นต้องลบไฟล์ที่ **Corrupted** ออกก่อนส่งเข้า Pipeline เพื่อป้องกัน Error
-  * ต้องทำ **Resize** ภาพให้เป็นขนาดมาตรฐาน (เช่น 224x224)
-  * ต้องทำ **Normalization** ค่าพิกเซลตาม Mean และ Std ของแต่ละ Channel
-* **Data Augmentation:** ควรใช้ Random Flip, Rotation และ Brightness Adjustment เพื่อลดปัญหา Overfitting จาก Background และสภาวะแสงที่ต่างกัน
+---
+
+## 3. สรุปผลกระทบต่อโมเดลและแนวทางแก้ไข (Insights & Actionable Plan)
+| ปัญหาที่อาจพบ | ผลกระทบต่อโมเดล (Impact) | แนวทางแก้ไขก่อนเทรน (Action Plan) |
+| :--- | :--- | :--- |
+| **Class Imbalance** | โมเดลจะ Bias ไปทางคลาสที่มีจำนวนเยอะ | ใช้ Weighted Loss, Data Augmentation |
+| **Aspect Ratio ต่างกันมาก** | หาก Resize ดื้อๆ ภาพจะยืดหดจนเสียรูปทรง | ใช้ Padding (Letterbox) ก่อน Resize หรือทำ Random Cropping |
+| **รูปซ้ำ (Duplicate Hashes)** | เกิด Data Leakage หากรูปซ้ำหลุดไปที่ Train และ Test | ทำ Data Deduplication โดยลบไฟล์ที่มี Hash ซ้ำออก |
+| **ภาพเบลอ / นอยส์เยอะ** | Feature Extractor สับสนกับขอบภาพ | กำหนด Threshold ค่า Blur Score เพื่อคัดกรองภาพก่อนเทรน |
 """
     with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
-        f.write(md_content)
-
+        f.write(report_md)
 
 # ==========================================
-# MAIN EXECUTION
+# 5. การรันการทำงานหลัก (Execution)
 # ==========================================
-def main():
-    df = extract_and_clean_metadata(DATA_DIR)
-    stats_df = generate_plots(df)
-    write_summary_report(df, stats_df)
-    print(f"[✓] EDA Complete! Results saved to '{SUMMARY_FILE}' and '{FIGURES_DIR}/'")
-
-
 if __name__ == "__main__":
-    main()
+    print("⏳ กำลังเริ่มวิเคราะห์ข้อมูลรูปภาพ...")
+    df = extract_image_metadata(DATASET_DIR)
+    
+    if not df.empty:
+        df_valid = df[df["corrupted"] == False]
+        
+        # 1. วาดกราฟเชิงปริมาณ
+        plt.figure(figsize=(14, 10))
+        plt.subplot(2, 2, 1)
+        sns.countplot(data=df_valid, x="class")
+        plt.title("Class Distribution")
+        
+        plt.subplot(2, 2, 2)
+        sns.scatterplot(data=df_valid, x="width", y="height", hue="class", alpha=0.5)
+        plt.title("Dimensions (Width vs Height)")
+        
+        plt.subplot(2, 2, 3)
+        sns.histplot(data=df_valid, x="aspect_ratio", bins=30, kde=True)
+        plt.title("Aspect Ratio Distribution")
+        
+        plt.subplot(2, 2, 4)
+        sns.histplot(data=df_valid, x="size_kb", bins=30, kde=True)
+        plt.title("File Size Distribution (KB)")
+        
+        plt.tight_layout()
+        summary_plot_path = os.path.join(FIGURES_DIR, "01_eda_summary_plots.png")
+        plt.savefig(summary_plot_path, dpi=200)
+        plt.close()
+        
+        # 2. สุ่มวาดภาพตัวอย่างและ Histogram เชิงคุณภาพ
+        print("🖼️ กำลังสุ่มตรวจคุณภาพรูปภาพและสร้าง Histogram...")
+        plot_and_save_samples(df_valid, n_samples=3)
+        
+        # 3. สร้าง Markdown Report
+        print("📝 กำลังเขียนรายงานสรุปผลลง eda_summary.md...")
+        generate_summary_report(df)
+        
+        print("\n" + "="*40)
+        print("🎉 การทำ EDA เสร็จสมบูรณ์แล้ว!")
+        print(f"📁 ดูกราฟทั้งหมดได้ที่: {FIGURES_DIR}")
+        print(f"📄 ดูรายงานสรุปผลได้ที่: {SUMMARY_FILE}")
+        print("="*40)
+    else:
+        print("❌ ไม่พบข้อมูลรูปภาพ กรุณาตรวจสอบ Path โฟลเดอร์อีกครั้ง")
