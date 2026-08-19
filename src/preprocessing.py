@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 from PIL import Image, ImageFile, ImageEnhance
 import imagehash
@@ -36,7 +37,8 @@ def save_step_by_step_plot(original, resized, enhanced, augmented, save_path):
     plt.close()
 
 def comprehensive_image_processing():
-    current_project_dir = Path(os.path.abspath(__file__)).parent
+    # ถอยออกจาก src/ มา 1 ระดับเพื่อชี้ไปยัง Root Directory ของโปรเจกต์
+    current_project_dir = Path(os.path.abspath(__file__)).parent.parent
     data_path = current_project_dir / "Dataset-cat-and-dog-image"
     output_dir = current_project_dir / "data" / "processed"
     report_dir = current_project_dir / "reports" / "figures"
@@ -73,14 +75,14 @@ def comprehensive_image_processing():
                     original_img = img.copy()
                     img = img.convert('RGB')
                     
-                    # 1. Resize รูปภาพให้มีขนาดมาตรฐานเดียวกัน (224x224) พร้อม LANCZOS รักษาขอบไม่ให้แตก
+                    # 1. Resize รูปภาพให้มีขนาดมาตรฐานเดียวกัน (224x224) พร้อม LANCZOS
                     img_resized = img.resize((224, 224), Image.Resampling.LANCZOS)
                     
-                    # 2. Noise Reduction / Denoising (ปรับความคมชัดเพื่อรักษาเส้นขนและลดความฟุ้งเบลอ)
+                    # 2. Noise Reduction / Denoising
                     enhancer_sharp = ImageEnhance.Sharpness(img_resized)
                     img_denoised = enhancer_sharp.enhance(1.3)
                     
-                    # 3. Data Augmentation (Flip ขวาซ้าย และปรับความสว่างสุ่ม)
+                    # 3. Data Augmentation (Flip / Brightness)
                     img_augmented = img_denoised.copy()
                     if np.random.rand() > 0.5:
                         img_augmented = img_augmented.transpose(Image.FLIP_LEFT_RIGHT)
@@ -88,7 +90,7 @@ def comprehensive_image_processing():
                     enhancer_bright = ImageEnhance.Brightness(img_augmented)
                     img_augmented = enhancer_bright.enhance(np.random.uniform(0.8, 1.2))
                     
-                    # 4. Normalization (สเกลค่าพิกเซลเป็นช่วง 0 - 1 สำหรับโมเดล)
+                    # 4. Normalization (0 - 1 Scale)
                     img_array = np.array(img_augmented, dtype=np.float32) / 255.0
                     img_normalized = Image.fromarray((img_array * 255).astype(np.uint8))
                     
@@ -100,7 +102,7 @@ def comprehensive_image_processing():
                     else:
                         hashes[img_hash] = img_path
                         
-                        # บันทึกภาพ Before/After ยืนยันผลลัพธ์ของแต่ละคลาสลงใน reports/figures/ ทันที
+                        # บันทึกภาพ Before/After ยืนยันผลลัพธ์ลงใน reports/figures/
                         if class_name in sample_saved and not sample_saved[class_name]:
                             plot_path = report_dir / f"step_by_step_{class_name}.png"
                             save_step_by_step_plot(original_img, img_resized, img_denoised, img_augmented, plot_path)
