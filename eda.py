@@ -9,10 +9,23 @@ from glob import glob
 from PIL import Image
 
 # ==========================================
-# 1. การจัดการ Path และโฟลเดอร์ผลลัพธ์
+# 1. การจัดการ Path และโฟลเดอร์ผลลัพธ์ (แบบยืดหยุ่น)
 # ==========================================
 current_path = os.getcwd()
-DATASET_DIR = os.path.join(current_path, "Dataset-cat-and-dog-image", "train")
+
+# สร้างลิสต์ของ Path ที่เป็นไปได้ทั้งหมด
+possible_paths = [
+    os.path.join(current_path, "train"), # กรณี train อยู่หน้าสุด
+    os.path.join(current_path, "Dataset-cat-and-dog-image", "train"), # กรณีซ้อนในโฟลเดอร์เดิม
+    os.path.join(current_path, "data", "train") # กรณีจัดระเบียบใหม่ไว้ใน data
+]
+
+DATASET_DIR = None
+for p in possible_paths:
+    if os.path.exists(p):
+        DATASET_DIR = p
+        break
+
 REPORTS_DIR = os.path.join(current_path, "reports")
 FIGURES_DIR = os.path.join(REPORTS_DIR, "figures")
 SUMMARY_FILE = os.path.join(REPORTS_DIR, "eda_summary.md")
@@ -20,7 +33,10 @@ SUMMARY_FILE = os.path.join(REPORTS_DIR, "eda_summary.md")
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
 print(f"Current Working Directory: {current_path}")
-print(f"Target Dataset Path: {DATASET_DIR}")
+if DATASET_DIR:
+    print(f"✅ Target Dataset Path Found: {DATASET_DIR}")
+else:
+    print(f"❌ Error: ไม่พบโฟลเดอร์ train ในโครงสร้างปัจจุบัน กรุณานำโฟลเดอร์รูปภาพมาวาง")
 print(f"Reports will be saved to: {REPORTS_DIR}\n")
 
 # ==========================================
