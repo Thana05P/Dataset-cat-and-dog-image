@@ -45,6 +45,7 @@ def comprehensive_preprocessing():
     output_dir = current_project_dir / 'data' / 'processed'
     report_dir = current_project_dir / 'reports' / 'figures'
     
+    # สร้างโฟลเดอร์สำหรับเก็บผลลัพธ์
     report_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -68,7 +69,7 @@ def comprehensive_preprocessing():
         print(f"- คลาส '{c_name}': {count} ไฟล์")
     print("-" * 40)
 
-    print(f"[Preprocessing] เริ่มกระบวนการ Image Processing, Cleaning และลบไฟล์ขยะ...\n")
+    print(f"[Preprocessing] เริ่มกระบวนการ Image Processing, Cleaning และคัดกรองไฟล์...\n")
     
     for img_path in data_path.glob("**/*.*"):
         if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
@@ -77,7 +78,7 @@ def comprehensive_preprocessing():
             class_out_dir.mkdir(parents=True, exist_ok=True)
 
             try:
-                # ตรวจสอบความสมบูรณ์ของไฟล์ภาพ
+                # 1. ตรวจสอบความสมบูรณ์ของไฟล์ภาพ (ไฟล์เสียจะกระโดดไป except ทันที)
                 with Image.open(img_path) as img:
                     img.verify()
                 
@@ -85,14 +86,24 @@ def comprehensive_preprocessing():
                     original_img = img.copy() 
                     img = img.convert('RGB')
                     
-                    # 1. Resize ด้วย LANCZOS เพื่อรักษาความคมชัด ขอบไม่แตก
+                    # 2. ตรวจสอบภาพซ้ำ (Duplicate Detection)
+                    # *แก้ไข:* ทำการเช็ค Hash จากภาพต้นฉบับก่อนโดน Augment เพื่อให้เช็คได้แม่นยำ
+                    img_hash = imagehash.average_hash(img)
+                    if img_hash in hashes:
+                        removed_duplicates += 1
+                        # ข้ามการทำงานไปเลย ไม่เซฟรูปลงโฟลเดอร์ processed (และไม่ลบไฟล์ต้นฉบับ)
+                        continue
+                    else:
+                        hashes[img_hash] = img_path.name
+                    
+                    # 3. Resize ด้วย LANCZOS เพื่อรักษาความคมชัด ขอบไม่แตก
                     img_resized = img.resize((224, 224), Image.Resampling.LANCZOS)
                     
-                    # 2. เพิ่มความคมชัด (Sharpen) แทนการใช้ฟิลเตอร์เบลอ
+                    # 4. เพิ่มความคมชัด (Sharpen) แทนการใช้ฟิลเตอร์เบลอ
                     enhancer_sharp = ImageEnhance.Sharpness(img_resized)
                     img_enhanced = enhancer_sharp.enhance(1.5) 
                     
-                    # 3. Data Augmentation (Flip & Brightness)
+                    # 5. Data Augmentation (Flip & Brightness)
                     img_augmented = img_enhanced.copy()
                     if np.random.rand() > 0.5:
                         img_augmented = img_augmented.transpose(Image.FLIP_LEFT_RIGHT)
@@ -100,53 +111,35 @@ def comprehensive_preprocessing():
                     enhancer_bright = ImageEnhance.Brightness(img_augmented)
                     img_augmented = enhancer_bright.enhance(np.random.uniform(0.8, 1.2)) 
                     
-                    # 4. ตรวจสอบภาพซ้ำ (Duplicate Detection)
-                    img_hash = imagehash.average_hash(img_augmented)
-                    if img_hash in hashes:
-                        removed_duplicates += 1
-                        # หากเจอภาพซ้ำ สามารถลบทิ้งจากต้นทางได้เลย (หรือข้ามการเซฟ)
-                        try:
-                            os.remove(img_path)
-                        except OSError:
-                            pass
-                        continue
-                    else:
-                        hashes[img_hash] = img_path.name
-                        
-                        # บันทึกภาพตัวอย่าง Before/After 4 ขั้นตอน
-                        if class_name in sample_saved and not sample_saved[class_name]:
-                            plot_path = report_dir / f"step_by_step_{class_name}.png"
-                            save_step_by_step_plot(original_img, img_resized, img_enhanced, img_augmented, plot_path)
-                            print(f"📸 บันทึกภาพขั้นตอนประมวลผลของ {class_name} ไว้ที่: {plot_path}")
-                            sample_saved[class_name] = True
-                        
-                        # บันทึกไฟล์ที่ผ่านการ Clean ลงโฟลเดอร์ processed
-                        out_file = class_out_dir / img_path.name
-                        img_augmented.save(out_file)
-                        
-                        cleaned_counts[class_name] = cleaned_counts.get(class_name, 0) + 1
+                    # 6. บันทึกภาพตัวอย่าง Before/After 4 ขั้นตอน (คลาสละ 1 รูป)
+                    if class_name in sample_saved and not sample_saved[class_name]:
+                        plot_path = report_dir / f"step_by_step_{class_name}.png"
+                        save_step_by_step_plot(original_img, img_resized, img_enhanced, img_augmented, plot_path)
+                        print(f"📸 บันทึกภาพขั้นตอนประมวลผลของ {class_name} ไว้ที่: {plot_path}")
+                        sample_saved[class_name] = True
+                    
+                    # 7. บันทึกไฟล์ที่ผ่านกระบวนการแล้วลงโฟลเดอร์ processed
+                    out_file = class_out_dir / img_path.name
+                    img_augmented.save(out_file)
+                    
+                    cleaned_counts[class_name] = cleaned_counts.get(class_name, 0) + 1
 
             except (IOError, SyntaxError):
-                # หากเจอไฟล์เสีย (Corrupted) สั่งลบทิ้งจากเครื่องทันที
+                # หากเจอไฟล์เสีย (Corrupted) ให้นับจำนวนไว้และข้ามไฟล์นั้นไป (ไม่ลบต้นฉบับ)
                 removed_corrupt += 1
-                try:
-                    os.remove(img_path)
-                except OSError:
-                    pass
 
     # แสดงรายงานสรุปผล
     print("\n" + "="*45)
     print("--- สรุปผลการทำ Data Preprocessing & Cleaning ---")
-    print(f"ภาพเสีย (Corrupted) ที่ตรวจพบและลบทิ้ง: {removed_corrupt} ไฟล์")
+    print(f"ภาพเสีย (Corrupted) ที่ตรวจพบและคัดทิ้ง: {removed_corrupt} ไฟล์")
     print(f"ภาพซ้ำ (Duplicates) ที่ตรวจพบและคัดทิ้ง: {removed_duplicates} ไฟล์")
     print("-" * 45)
-    print("จำนวนไฟล์ที่เหลือหลังผ่านการจัดการ (Cleaned & Processed):")
+    print("จำนวนไฟล์ที่จัดเก็บในโฟลเดอร์ Processed พร้อมใช้งาน:")
     for c_name, count in cleaned_counts.items():
         print(f"  - คลาส '{c_name}': {count} ไฟล์")
     print(f"  - รวมทั้งหมดที่พร้อมใช้งาน: {sum(cleaned_counts.values())} ไฟล์")
     print("="*45)
-    print(f"\n✅ เสร็จสิ้น! ไฟล์ถูกคลีนและจัดเก็บเรียบร้อย")
-
+    print(f"\n✅ เสร็จสิ้น! ไฟล์รูปภาพที่สมบูรณ์ถูกจัดเก็บไว้ที่โฟลเดอร์ {output_dir}")
 
 if __name__ == "__main__":
     comprehensive_preprocessing()
