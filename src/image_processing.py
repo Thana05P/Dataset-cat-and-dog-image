@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 from PIL import Image, ImageFilter, ImageEnhance
@@ -38,6 +39,10 @@ def show_before_after_pipeline(img_path):
     enhancer = ImageEnhance.Brightness(original_img)
     bright_img = enhancer.enhance(1.3) # เพิ่มความสว่าง 30%
 
+    # 6. Normalization: ปรับสเกล 0-1 (เพิ่มใหม่)
+    img_array = np.array(resized_img)
+    normalized_array = img_array / 255.0
+
     # --- จัดเตรียมแสดงผลภาพ Before/After เปรียบเทียบในหน้าต่างเดียว ---
     plt.figure(figsize=(16, 9))
     
@@ -50,7 +55,7 @@ def show_before_after_pipeline(img_path):
     # ภาพที่ 2: Resize
     plt.subplot(2, 3, 2)
     plt.imshow(resized_img)
-    plt.title(f"2. Resize ({TARGET_SIZE[0]}x{TARGET_SIZE[1]})\n[เหตุผล: ควบคุมขนาด Input ให้เท่ากันเพื่อเข้า Model]")
+    plt.title(f"2. Resize ({TARGET_SIZE[0]}x{TARGET_SIZE[1]})\n[เหตุผล: ควบคุมขนาด Input ให้เท่ากัน]")
     plt.axis('off')
     
     # ภาพที่ 3: Noise Reduction
@@ -71,6 +76,12 @@ def show_before_after_pipeline(img_path):
     plt.title("5. Augmentation: Brightness Adjust\n[เหตุผล: จำลองสภาพแสงที่แตกต่างในโลกจริง]")
     plt.axis('off')
 
+    # ภาพที่ 6: Normalization (เพิ่มช่องที่ 6)
+    plt.subplot(2, 3, 6)
+    plt.imshow(normalized_array)
+    plt.title("6. Normalization (0-1 Scale)\n[เหตุผล: ช่วยให้โมเดลเรียนรู้ได้เร็วขึ้น]")
+    plt.axis('off')
+
     plt.tight_layout()
     plt.show()
 
@@ -81,3 +92,8 @@ if __name__ == "__main__":
         show_before_after_pipeline(sample_path)
     else:
         print("ไม่พบไฟล์รูปภาพใน Dataset")
+        # 6. Normalization: ปรับสเกลพิกเซลจาก 0-255 เป็น 0-1
+    img_array = np.array(resized_img)
+    normalized_array = img_array / 255.0
+    # หมายเหตุ: การแสดงผล normalized_array ด้วย plt.imshow จะดูเหมือนภาพปกติ 
+    # แต่มันสำคัญมากสำหรับโมเดล
