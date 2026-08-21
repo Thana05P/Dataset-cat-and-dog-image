@@ -28,7 +28,7 @@ cd <repo-name>
 แบ่งสัดส่วนข้อมูลและสร้าง Manifest (Data Split):Bashpython src/data_split.py
 
 ## 📂 4. โครงสร้างโฟลเดอร์ (Repository Structure)Plaintextrepo-name/
-├── README.md               # เอกสารอธิบายโปรเจกต์ (ไฟล์นี้)
+├── README.md               # เอกสารอธิบายโปรเจกต์ (ไฟล์นี้)                                                                                                            
 ├── requirements.txt        # ไฟล์ระบุ dependencies/libraries ที่ต้องใช้
 ├── .gitignore              # ไฟล์ละเว้นการ push ข้อมูล/ไฟล์ขยะขึ้น GitHub
 ├── src/                    # โฟลเดอร์เก็บ Source Code หลัก
