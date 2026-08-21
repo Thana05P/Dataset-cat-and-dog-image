@@ -46,14 +46,14 @@ cd <repo-name>
 ## 👥 5. รายชื่อสมาชิกกลุ่มและหน้าที่รับผิดชอบ รหัสนักศึกษาชื่อ-นามสกุล Branch ที่รับผิดชอบขอบเขตงาน (Role)                                                    
 
 |1. นายธนวัฒน์ ริ้วผดุงพันธ์ 077 คนที่ 1 & 4:| feature/collect/split|
-|:---|:---|
+|:---|:---
 |Data Collection: เขียน Script ดึง Dataset จาก Kaggle API + จัดโครงสร้างโฟลเดอร์ข้อมูล
 Data Split: ทำ Train/Val/Test Split ตามหลักการ (Stratified, กัน Data Leak) + สร้าง Report สรุปทั้งหมด (README/Slide/ดูแล Repo)|
-|:---|:---|
+|:---|:---
 |2. นายธนาวัช ภักดี 078 คนที่ 3:| feature/preprocessing|
-|:---|:---|
+|:---|:---
 Preprocessing: ทำ Data Cleaning, Image Processing (เช่น Resize ให้เท่ากัน, Denoise ลดสัญญาณรบกวน, Data Augmentation เพื่อเพิ่มความหลากหลาย)
-|:---|:---|
+|:---|:---
 |3. นายนนทพันธ์ สุขกำนิด 079 คนที่ 2:| feature/eda|
 |EDA: ทำ EDA เชิงปริมาณและเชิงคุณภาพ วิเคราะห์การกระจายตัวของคลาส ขนาดภาพ พร้อมเขียนสรุปผล|
-|:---|:---|
+|:---|:---
