@@ -42,8 +42,8 @@ Markdown# Image Dataset Cleaning & Preprocessing Pipeline
 ⠀⠀⠀⠀⠀└── data_split.py       # สคริปต์แบ่ง Train/Val/Test Split                                                    
 ├── notebooks/              # โฟลเดอร์สำหรับ Jupyter Notebook (Interactive EDA)                                                    
 ├── reports/                # โฟลเดอร์เก็บรายงาน                                                    
-⠀⠀⠀⠀ ├── eda_summary.md      # ไฟล์สรุปผลการทำ EDA                                                    
-⠀⠀⠀⠀ └── figures/            # โฟลเดอร์เก็บกราฟและภาพสรุปผล (ไม่เก็บภาพ Dataset จริง)                                                    
+⠀⠀⠀⠀⠀├── eda_summary.md      # ไฟล์สรุปผลการทำ EDA                                                    
+⠀⠀⠀⠀⠀└── figures/            # โฟลเดอร์เก็บกราฟและภาพสรุปผล (ไม่เก็บภาพ Dataset จริง)                                                    
 └── slides/                 # โฟลเดอร์สำหรับเก็บไฟล์ Slide นำเสนอ หรือ Export PDF
 
 ## 👥 5. รายชื่อสมาชิกกลุ่มและหน้าที่รับผิดชอบ รหัสนักศึกษาชื่อ-นามสกุล Branch ที่รับผิดชอบขอบเขตงาน (Role)                                                    
