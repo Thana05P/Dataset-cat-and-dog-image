@@ -26,6 +26,7 @@ cd <repo-name>
 ปรับแต่งและทำความสะอาดภาพ (Preprocessing):Bashpython src/preprocessing.py
 หรือ python src/image_processing.py (ตามที่กำหนดในโค้ด)
 แบ่งสัดส่วนข้อมูลและสร้าง Manifest (Data Split):Bashpython src/data_split.py
+
 ## 📂 4. โครงสร้างโฟลเดอร์ (Repository Structure)Plaintextrepo-name/
 ├── README.md               # เอกสารอธิบายโปรเจกต์ (ไฟล์นี้)
 ├── requirements.txt        # ไฟล์ระบุ dependencies/libraries ที่ต้องใช้
@@ -41,13 +42,12 @@ cd <repo-name>
 │   ├── eda_summary.md      # ไฟล์สรุปผลการทำ EDA
 │   └── figures/            # โฟลเดอร์เก็บกราฟและภาพสรุปผล (ไม่เก็บภาพ Dataset จริง)
 └── slides/                 # โฟลเดอร์สำหรับเก็บไฟล์ Slide นำเสนอ หรือ Export PDF
-## 👥 5. รายชื่อสมาชิกกลุ่มและหน้าที่รับผิดชอบรหัสนักศึกษาชื่อ-นามสกุล Branch ที่รับผิดชอบขอบเขตงาน (Role)
-รหัสนักศึกษาชื่อ-นามสกุล Branch ที่รับผิดชอบขอบเขตงาน (Role)
+## 👥 5. รายชื่อสมาชิกกลุ่มและหน้าที่รับผิดชอบ รหัสนักศึกษาชื่อ-นามสกุล Branch ที่รับผิดชอบขอบเขตงาน (Role)
 
-1. นายธนวัฒน์ ริ้วผดุงพันธ์ 077 feature/collect/splitคนที่ 1 & 4:
+นายธนวัฒน์ ริ้วผดุงพันธ์ 077 feature/collect/splitคนที่ 1 & 4:
 - Data Collection: เขียน Script ดึง Dataset จาก Kaggle API + จัดโครงสร้างโฟลเดอร์ข้อมูล
 - Data Split: ทำ Train/Val/Test Split ตามหลักการ (Stratified, กัน Data Leak) + สร้าง Report สรุปทั้งหมด (README/Slide/ดูแล Repo)
-2. นายธนาวัช ภักดี 078 feature/preprocessingคนที่ 3:
+นายธนาวัช ภักดี 078 feature/preprocessingคนที่ 3:
 - Preprocessing: ทำ Data Cleaning, Image Processing (เช่น Resize ให้เท่ากัน, Denoise ลดสัญญาณรบกวน, Data Augmentation เพื่อเพิ่มความหลากหลาย)
-3. นายนนทพันธ์ สุขกำนิด 079 feature/eda คนที่ 2:
+นายนนทพันธ์ สุขกำนิด 079 feature/eda คนที่ 2:
 - EDA: ทำ EDA เชิงปริมาณและเชิงคุณภาพ วิเคราะห์การกระจายตัวของคลาส ขนาดภาพ พร้อมเขียนสรุปผล
