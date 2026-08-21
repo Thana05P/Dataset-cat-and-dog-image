@@ -32,7 +32,7 @@ cd <repo-name>
 ├── requirements.txt        # ไฟล์ระบุ dependencies/libraries ที่ต้องใช้                                                    
 ├── .gitignore              # ไฟล์ละเว้นการ push ข้อมูล/ไฟล์ขยะขึ้น GitHub                                                    
 ├── src/                    # โฟลเดอร์เก็บ Source Code หลัก                                                    
-|├── data_collection.py  # สคริปต์ดึง Dataset จาก Kaggle                                                    
+   |├── data_collection.py  # สคริปต์ดึง Dataset จาก Kaggle                                                    
 |├── eda.py              # สคริปต์ทำ Exploratory Data Analysis                                                    
 |├── preprocessing.py    # สคริปต์ทำ Data Cleaning / ภาพรวม                                                    
 |├── image_processing.py # สคริปต์จัดการรูปภาพ (resize, denoise, augment)                                                    
