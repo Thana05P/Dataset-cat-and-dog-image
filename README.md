@@ -23,7 +23,8 @@ Markdown# Image Dataset Cleaning & Preprocessing Pipeline
 * โคลน Repository นี้ลงเครื่องของคุณ:
 * Bashgit clone [https://github.com/](https://github.com/)<your-username>/<repo-name>.git cd <repo-name>
 * ติดตั้งไลบรารีที่จำเป็นผ่าน requirements.txt:Bashpip install -r requirements.txt
-* วิธีรัน Code ทีละขั้นตอน:เพื่อให้ไพพ์ไลน์ทำงานสมบูรณ์ ให้รันสคริปต์ตามลำดับดังนี้:ดึงข้อมูล (Data Collection):Bashpython src/data_collection.py
+* **วิธีรัน Code ทีละขั้นตอน เพื่อให้ไพพ์ไลน์ทำงานสมบูรณ์ ให้รันสคริปต์ตามลำดับดังนี้:**
+* ดึงข้อมูล (Data Collection):Bashpython src/data_collection.py
 * สำรวจข้อมูล (EDA):Bashpython src/eda.py
 * ปรับแต่งและทำความสะอาดภาพ (Preprocessing):Bashpython src/preprocessing.py
 * หรือ python src/image_processing.py (ตามที่กำหนดในโค้ด)
