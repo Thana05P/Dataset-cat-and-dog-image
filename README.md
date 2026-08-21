@@ -49,12 +49,8 @@ cd <repo-name>
 |:---|:---|
 |Data Collection: เขียน Script ดึง Dataset จาก Kaggle API + จัดโครงสร้างโฟลเดอร์ข้อมูล
 Data Split: ทำ Train/Val/Test Split ตามหลักการ (Stratified, กัน Data Leak) + สร้าง Report สรุปทั้งหมด (README/Slide/ดูแล Repo)|
-
 |2. นายธนาวัช ภักดี 078 คนที่ 3:| feature/preprocessing|
-|:---|:---|
 Preprocessing: ทำ Data Cleaning, Image Processing (เช่น Resize ให้เท่ากัน, Denoise ลดสัญญาณรบกวน, Data Augmentation เพื่อเพิ่มความหลากหลาย)
-
 |3. นายนนทพันธ์ สุขกำนิด 079 คนที่ 2:| feature/eda|
-|:---|:---|
 |EDA: ทำ EDA เชิงปริมาณและเชิงคุณภาพ วิเคราะห์การกระจายตัวของคลาส ขนาดภาพ พร้อมเขียนสรุปผล|
 
