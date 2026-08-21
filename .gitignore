@@ -7,8 +7,8 @@ dataset/
 *.gz
 
 # --- Processed Outputs & Reports Data ---
-reports/figures/*
-!reports/figures/.gitkeep
+figures/*
+figures/.gitkeep
 
 # --- IDE & System Files ---
 .vscode/
