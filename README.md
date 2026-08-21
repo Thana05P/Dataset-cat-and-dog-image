@@ -32,15 +32,15 @@ cd <repo-name>
 ├── requirements.txt        # ไฟล์ระบุ dependencies/libraries ที่ต้องใช้                                                    
 ├── .gitignore              # ไฟล์ละเว้นการ push ข้อมูล/ไฟล์ขยะขึ้น GitHub                                                    
 ├── src/                    # โฟลเดอร์เก็บ Source Code หลัก                                                    
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀|├── data_collection.py  # สคริปต์ดึง Dataset จาก Kaggle                                                    
-|├── eda.py              # สคริปต์ทำ Exploratory Data Analysis                                                    
-|├── preprocessing.py    # สคริปต์ทำ Data Cleaning / ภาพรวม                                                    
-|├── image_processing.py # สคริปต์จัดการรูปภาพ (resize, denoise, augment)                                                    
-|└── data_split.py       # สคริปต์แบ่ง Train/Val/Test Split                                                    
+⠀⠀⠀⠀⠀├── data_collection.py  # สคริปต์ดึง Dataset จาก Kaggle                                                    
+⠀⠀⠀⠀⠀├── eda.py              # สคริปต์ทำ Exploratory Data Analysis                                                    
+⠀⠀⠀⠀⠀├── preprocessing.py    # สคริปต์ทำ Data Cleaning / ภาพรวม                                                    
+⠀⠀⠀⠀⠀├── image_processing.py # สคริปต์จัดการรูปภาพ (resize, denoise, augment)                                                    
+⠀⠀⠀⠀⠀└── data_split.py       # สคริปต์แบ่ง Train/Val/Test Split                                                    
 ├── notebooks/              # โฟลเดอร์สำหรับ Jupyter Notebook (Interactive EDA)                                                    
 ├── reports/                # โฟลเดอร์เก็บรายงาน                                                    
-      ├── eda_summary.md      # ไฟล์สรุปผลการทำ EDA                                                    
-      └── figures/            # โฟลเดอร์เก็บกราฟและภาพสรุปผล (ไม่เก็บภาพ Dataset จริง)                                                    
+⠀⠀⠀⠀ ├── eda_summary.md      # ไฟล์สรุปผลการทำ EDA                                                    
+⠀⠀⠀⠀ └── figures/            # โฟลเดอร์เก็บกราฟและภาพสรุปผล (ไม่เก็บภาพ Dataset จริง)                                                    
 └── slides/                 # โฟลเดอร์สำหรับเก็บไฟล์ Slide นำเสนอ หรือ Export PDF                                                    
 ## 👥 5. รายชื่อสมาชิกกลุ่มและหน้าที่รับผิดชอบ รหัสนักศึกษาชื่อ-นามสกุล Branch ที่รับผิดชอบขอบเขตงาน (Role)                                                    
 
