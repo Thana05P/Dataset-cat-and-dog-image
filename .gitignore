@@ -5,7 +5,10 @@ dataset/
 *.zip
 *.tar
 *.gz
-
+figures/
+train/
+val/
+test/
 # --- Processed Outputs & Reports Data ---
 figures/*
 figures/.gitkeep
