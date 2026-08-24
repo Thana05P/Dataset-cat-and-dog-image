@@ -9,9 +9,12 @@ figures/
 train/
 val/
 test/
+runs/
+*.pt
 # --- Processed Outputs & Reports Data ---
 figures/*
 figures/.gitkeep
+*.csv
 
 # --- IDE & System Files ---
 .vscode/
