@@ -11,6 +11,8 @@ val/
 test/
 runs/
 *.pt
+*.jpg
+*.png
 # --- Processed Outputs & Reports Data ---
 figures/*
 figures/.gitkeep
