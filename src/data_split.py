@@ -9,8 +9,8 @@ current_project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '.
 # 2. กำหนด Path ต้นทาง และ ปลายทาง
 processed_dir = os.path.join(current_project_dir, 'data', 'processed')
 
-# กำหนดปลายทางให้อยู่ที่ Root ของโปรเจกต์ (อยู่นอกโฟลเดอร์ data)
-output_base_dir = current_project_dir 
+# [จุดที่แก้]: กำหนดให้สร้างและบันทึกลงในโฟลเดอร์ Dataset (project_root/Dataset/)
+output_base_dir = os.path.join(current_project_dir, 'Dataset')
 
 print(f"กำลังค้นหารูปภาพที่ผ่านการทำ Preprocessing จาก:\n{processed_dir}")
 
@@ -65,8 +65,8 @@ else:
             'test': test_df
         }
 
-        # 6. คัดลอกไฟล์รูปภาพแยกไปยังโฟลเดอร์ train/, val/, test/ (อยู่นอก data)
-        print("กำลังคัดลอกรูปภาพไปยังโฟลเดอร์ train, val, test...")
+        # 6. คัดลอกไฟล์รูปภาพแยกไปยังโฟลเดอร์ Dataset/train, Dataset/val, Dataset/test
+        print("กำลังคัดลอกรูปภาพไปยังโฟลเดอร์ Dataset/ (train, val, test)...")
         manifest_records = []
 
         for split_name, split_data in splits.items():
@@ -75,7 +75,7 @@ else:
                 class_name = row['label']
                 img_name = os.path.basename(src_file)
 
-                # ปลายทาง: project_root/{split_name}/{class_name}/ (อยู่นอก data)
+                # ปลายทาง: project_root/Dataset/{split_name}/{class_name}/
                 dest_folder = os.path.join(output_base_dir, split_name, class_name)
                 os.makedirs(dest_folder, exist_ok=True)
 
@@ -102,5 +102,5 @@ else:
         print(f"Validation (10%):  {len(val_df)} รูป")
         print(f"Test (10%):        {len(test_df)} รูป")
         print("========================================")
-        print(f"✅ บันทึกโฟลเดอร์ train, val, test สำเร็จที่:\n{current_project_dir}")
+        print(f"✅ บันทึกโฟลเดอร์ Dataset (train, val, test) สำเร็จที่:\n{output_base_dir}")
         print(f"✅ บันทึกไฟล์ Manifest เรียบร้อยแล้วที่:\n{manifest_path}")
