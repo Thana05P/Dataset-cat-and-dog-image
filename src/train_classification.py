@@ -1,6 +1,6 @@
 """
 สคริปต์ฝึกสอนโมเดล Image Classification ด้วย Ultralytics YOLO
-เหมาะสำหรับงาน: จำแนกขยะ, แยกโรคพืช, คัดเกรดผลไม้, ตรวจตำหนิชิ้นส่วน
+จำแนกภาพสุนัขและแมว (Cat vs Dog Classification)
 """
 
 import sys
@@ -19,37 +19,41 @@ def train_custom_classifier():
     print(" 🚀 STARTING YOLO CLASSIFICATION TRAINING")
     print("=" * 65)
 
-    # 1. เลือกรุ่น Pretrained Model (เช่น yolo11n-cls.pt หรือ yolov8n-cls.pt)
+    # 1. หาตำแหน่ง Root Directory ของโปรเจกต์ (ถอยออกจาก src/ มา 1 ระดับ)
+    current_project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+    # 2. เลือกรุ่น Pretrained Model
     model_name = "yolo11n-cls.pt"
     print(f"📦 Loading base model: {model_name}")
     model = YOLO(model_name)
 
-    # 2. กำหนด Path ชุดข้อมูล (Dataset Path)
-    # หมายเหตุ: โฟลเดอร์ต้องมีโครงสร้าง train/ และ val/
-    dataset_path = "Dataset"  # สามารถเปลี่ยนเป็น path โฟลเดอร์ dataset ของนักศึกษาได้
+    # 3. กำหนด Path ชุดข้อมูล และโฟลเดอร์บันทึกผลลัพธ์
+    dataset_path = os.path.join(current_project_dir, "Dataset")
+    runs_dir = os.path.join(current_project_dir, "runs", "classify", "runs_classify")
     
     print(f"📂 Dataset Target: {dataset_path}")
     print("⚙️ Training Hyperparameters:")
     print("   - Image Size (imgsz) : 224")
-    print("   - Epochs             : 5 (สำหรับ Demo)")
+    print("   - Epochs             : 150")
     print("   - Batch Size         : 16")
     print("   - Device             : cpu / 0 (auto)")
 
-    # 3. สั่งฝึกสอนโมเดล (Train Model)
+    # 4. สั่งฝึกสอนโมเดล (Train Model)
     results = model.train(
         data=dataset_path,
         epochs=150,
         imgsz=224,
         batch=16,
-        project="runs_classify",
+        project=runs_dir,
         name="custom_classifier_exp",
         exist_ok=True,
         verbose=True
     )
 
+    save_weight_path = os.path.join(runs_dir, "custom_classifier_exp", "weights", "best.pt")
     print("\n" + "=" * 65)
     print(" ✅ TRAINING FINISHED SUCCESSFULLY!")
-    print(f" 💾 Model Weights Saved to: runs_classify/custom_classifier_exp/weights/best.pt")
+    print(f" 💾 Model Weights Saved to: {save_weight_path}")
     print("=" * 65)
 
 if __name__ == '__main__':

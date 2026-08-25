@@ -3,8 +3,11 @@ import gradio as gr
 from PIL import Image
 from ultralytics import YOLO
 
-# 1. โหลดโมเดล best.pt
-model_path = os.path.join("runs", "classify", "runs_classify", "custom_classifier_exp", "weights", "best.pt")
+# 1. หาตำแหน่ง Root Directory ของโปรเจกต์ (ถอยออกจาก src/ มา 1 ระดับ)
+current_project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+# ชี้ไปยังไฟล์ best.pt จาก Root Directory
+model_path = os.path.join(current_project_dir, "runs", "classify", "runs_classify", "custom_classifier_exp", "weights", "best.pt")
 
 if not os.path.exists(model_path):
     raise FileNotFoundError(f"❌ ไม่พบไฟล์โมเดลที่: {model_path}")
@@ -26,7 +29,7 @@ def predict_image(img):
         
     return confidences
 
-# CSS สำหรับซ่อนปุ่มขยายจอ (Fullscreen/Maximize button)
+# CSS สำหรับซ่อนปุ่ม Fullscreen
 custom_css = """
 button[aria-label="fullscreen"], 
 button[title="Full screen"],
@@ -40,17 +43,17 @@ demo = gr.Interface(
     fn=predict_image,
     inputs=gr.Image(
         type="pil", 
-        sources=["upload"],                # เปิดเฉพาะปุ่มอัปโหลด
+        sources=["upload"],
         label="🖼️ อัปโหลดรูปภาพสุนัขหรือแมว"
     ),
     outputs=gr.Label(num_top_classes=2, label="📊 ผลการจำแนกประเภท (Probability)"),
     title="🐱🐶 Cat vs Dog Classification Web App",
-    description="อัปโหลดรูปภาพเพื่อทดสอบการจำแนกสุนัขหรือแมวด้วยโมเดล YOLO11 Custom Classifier",
+    description="อัปโหลดรูปภาพเพื่อทดสอบการจำแนกสุนัขหรือแมวด้วยโมเดล",
     theme="soft",
-    css=custom_css,                        # ซ่อนปุ่ม Fullscreen ด้วย CSS
-    flagging_mode="never"                  # ปิดปุ่ม Flag ด้านล่าง
+    css=custom_css,
+    flagging_mode="never"
 )
 
-# 4. เริ่มรันเว็บเซิร์ฟเวอร์
+# 4. รันเซิร์ฟเวอร์
 if __name__ == "__main__":
     demo.launch(server_name="127.0.0.1", server_port=7860, inbrowser=True)
