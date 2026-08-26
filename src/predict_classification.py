@@ -62,8 +62,8 @@ def classify_and_visualize(image_path=None, model_path=None):
     # จัดอันดับคลาสทั้งหมดจากความมั่นใจมากไปน้อย
     sorted_indices = result.probs.top5 if hasattr(result.probs, 'top5') else [top1_idx]
 
-    print(f"\n🏆 Top-1 Prediction: '{top1_name}' ({top1_conf * 100:.2f}%)")
-    print(f"\n📊 Top-{len(sorted_indices)} Probabilities Ranking:")
+    print(f"\n🏆 Prediction: '{top1_name}' ({top1_conf * 100:.2f}%)")
+    print(f"\n📊 Probabilities Ranking:")
     for rank, idx in enumerate(sorted_indices, 1):
         cname = result.names[idx]
         conf = float(result.probs.data[idx])
