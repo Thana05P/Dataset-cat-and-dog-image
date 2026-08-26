@@ -1,22 +1,10 @@
-# --- Dataset & Raw Data ---
+# --- Dataset & Raw Images (ข้ามเฉพาะชุดข้อมูลขนาดใหญ่) ---
 Dataset-cat-and-dog-image/
 data/
 dataset/
 *.zip
 *.tar
 *.gz
-figures/
-train/
-val/
-test/
-runs/
-*.pt
-*.jpg
-*.png
-# --- Processed Outputs & Reports Data ---
-figures/*
-figures/.gitkeep
-*.csv
 
 # --- IDE & System Files ---
 .vscode/
