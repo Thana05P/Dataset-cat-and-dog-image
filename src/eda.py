@@ -240,7 +240,7 @@ if __name__ == "__main__":
             plt.title("File Size Distribution (KB)")
             
             plt.tight_layout()
-            summary_plot_path = os.path.join(FIGURES_DIR, "01_eda_summary_plots.png")
+            summary_plot_path = os.path.join(FIGURES_DIR, "eda_summary_plots.png")
             plt.savefig(summary_plot_path, dpi=200)
             plt.close()
             
